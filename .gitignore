@@ -1,0 +1,20 @@
+__pycache__/
+*.py[cod]
+.venv/
+.env
+config/settings.json
+
+# Ignore content but keep directories
+logs/*
+!logs/.gitkeep
+state/*
+!state/.gitkeep
+
+.pytest_cache/
+.claude/
+.gemini/
+
+# Debug artifacts
+*.html
+*.png
+login_succeed.html
