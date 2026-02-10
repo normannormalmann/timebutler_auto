@@ -87,27 +87,36 @@ python timebutler_run.py --force-run --headful
 
 ### Automation (Windows Task Scheduler)
 
-#### Method 1: Using the setup script (Recommended)
+#### Method 1: Using the Interactive Installer (Recommended)
 
-The easiest way to create a scheduled task is using the provided PowerShell script:
+The easiest way to set up everything is using the interactive installer script, which supports both **English** and **German**.
 
-```powershell
-# Open PowerShell as Administrator
-cd "C:\Path\To\timebutler_auto"
-.\setup_task.ps1
-```
+1.  Open **PowerShell** as Administrator.
+2.  Navigate to the project directory:
+    ```powershell
+    cd "C:\Path\To\timebutler_auto"
+    ```
+3.  Run the installer:
+    ```powershell
+    .\install.ps1
+    ```
 
-This will create a scheduled task named "TimebutlerAuto" that:
-- Runs when you log on
-- Uses `pythonw.exe` (background execution, no console window)
-- Can optionally trigger on WLAN connection events (with `-IncludeWlanTrigger`)
+The installer guides you through:
+- **Language Selection**: Choose between English and German.
+- **Credentials Setup**: Enter your Timebutler email and password securely.
+- **Network Configuration**: Automatically detects your current Wi-Fi and allows you to select allowed networks from your saved profiles.
+- **Task Registration**: Registers the scheduled task to run automatically on login.
 
-**Optional parameters:**
-```powershell
-.\setup_task.ps1 -TaskName "MyTask" -PythonPath "C:\Python314\pythonw.exe" -IncludeWlanTrigger
-```
+#### Method 2: Manual Setup
 
-#### Method 2: Manual Task Creation
+If you prefer to configure everything manually:
+
+1.  **Configure Credentials**: Copy `.env.sample` to `.env` and fill in your details.
+2.  **Configure Networks**: Copy `config/settings.sample.json` to `config/settings.json` and add your SSIDs.
+3.  **Register Task**: Run the underlying setup script:
+    ```powershell
+    .\setup_task.ps1
+    ```
 
 Alternatively, create the task manually in Task Scheduler:
 
