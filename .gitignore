@@ -26,3 +26,4 @@ login_succeed.html
 # PowerShell helper scripts (user-specific)
 *.ps1
 !setup_task.ps1
+!install.ps1
