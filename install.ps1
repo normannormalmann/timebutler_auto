@@ -30,9 +30,18 @@ $strings = @{
         NoProfiles = "No saved Wi-Fi profiles found."
         SettingsSaved = "✓ Settings saved to config/settings.json with {0} network(s)."
         
-        Step3 = "Step 3: Python Environment"
-        VenvFound = "✓ Virtual Environment found: {0}"
-        NoVenv = "⚠ No Virtual Environment (.venv) found. Using System Python ({0}).`n  Ensure dependencies are installed (pip install -r requirements.txt)."
+        Step3 = "Step 3: Environment Setup"
+        CheckingPython = "Checking for Python..."
+        PythonNotFound = "Error: Python not found in PATH. Please install Python 3.8+."
+        VenvExists = "Virtual environment (.venv) found."
+        AskCreateVenv = "Virtual environment not found. Create one now? (Recommended) (y/n)"
+        CreatingVenv = "Creating virtual environment..."
+        VenvCreated = "✓ Virtual environment created."
+        AskInstallDeps = "Do you want to install/update dependencies? (y/n)"
+        InstallingDeps = "Installing dependencies (this may take a minute)..."
+        DepsSuccess = "✓ Dependencies installed."
+        InstallingBrowsers = "Installing Playwright browsers..."
+        BrowsersSuccess = "✓ Playwright browsers installed."
         
         Step4 = "Step 4: Windows Task Registration"
         TaskSuccess = "✓ Windows Task successfully registered!"
@@ -67,9 +76,18 @@ $strings = @{
         NoProfiles = "Keine gespeicherten WLAN-Profile gefunden."
         SettingsSaved = "✓ Einstellungen in config/settings.json gespeichert ({0} Netzwerke)."
         
-        Step3 = "Schritt 3: Python Umgebung"
-        VenvFound = "✓ Virtual Environment gefunden: {0}"
-        NoVenv = "⚠ Kein Virtual Environment (.venv) gefunden. Nutze System-Python ({0}).`n  Stelle sicher, dass alle Abhängigkeiten installiert sind (pip install -r requirements.txt)."
+        Step3 = "Schritt 3: Umgebung einrichten"
+        CheckingPython = "Prüfe Python-Installation..."
+        PythonNotFound = "Fehler: Python nicht gefunden. Bitte installiere Python 3.8+."
+        VenvExists = "Virtual Environment (.venv) gefunden."
+        AskCreateVenv = "Kein Virtual Environment gefunden. Jetzt erstellen? (Empfohlen) (j/n)"
+        CreatingVenv = "Erstelle Virtual Environment..."
+        VenvCreated = "✓ Virtual Environment erstellt."
+        AskInstallDeps = "Möchtest du Abhängigkeiten installieren/aktualisieren? (j/n)"
+        InstallingDeps = "Installiere Abhängigkeiten (das kann kurz dauern)..."
+        DepsSuccess = "✓ Abhängigkeiten installiert."
+        InstallingBrowsers = "Installiere Playwright Browser..."
+        BrowsersSuccess = "✓ Playwright Browser installiert."
         
         Step4 = "Schritt 4: Windows Task Registrierung"
         TaskSuccess = "✓ Windows Task erfolgreich registriert!"
@@ -159,15 +177,11 @@ if ($addMore) {
     $netshProfiles = netsh wlan show profiles
     foreach ($line in $netshProfiles) {
         if ($line -match ':\s*(.+)$' -and $line -notmatch '----') {
-             # "User Profile" or "All User Profile" or "Benutzerprofil" contains colon
-             # Filter out headers like "Profiles on interface..." which also have colons but no useful data usually
-             # A simpler check: lines starting with indentation and having a colon
              $pName = $matches[1].Trim()
              if ($pName) { $profiles += $pName }
         }
     }
     
-    # Filter duplicates just in case
     $profiles = $profiles | Select-Object -Unique
 
     if ($profiles.Count -gt 0) {
@@ -197,7 +211,6 @@ if ($addMore) {
     }
 }
 
-# Unique list
 $finalSSIDs = $selectedSSIDs | Select-Object -Unique
 
 # Write settings.json
@@ -210,15 +223,73 @@ Set-Content -Path $settingsPath -Value $jsonPayload -Encoding utf8
 Write-Host ($L.SettingsSaved -f $finalSSIDs.Count) -ForegroundColor Green
 Write-Host ""
 
-# --- Step 3: Python ---
+# --- Step 3: Python Environment ---
 Write-Host $L.Step3 -ForegroundColor Yellow
-$pythonPath = "pythonw.exe"
-if (Test-Path ".venv\Scripts\pythonw.exe") {
-    $pythonPath = Resolve-Path ".venv\Scripts\pythonw.exe"
-    Write-Host ($L.VenvFound -f $pythonPath) -ForegroundColor Green
-} else {
-    Write-Host ($L.NoVenv -f $pythonPath) -ForegroundColor Yellow
+
+# Check System Python
+$sysPythonAvailable = $false
+try {
+    $null = python --version
+    $sysPythonAvailable = $true
+} catch {
+    $sysPythonAvailable = $false
 }
+
+if (-not $sysPythonAvailable) {
+    Write-Error $L.PythonNotFound
+    exit 1
+}
+
+$venvPath = ".venv"
+$venvPythonExe = Join-Path $venvPath "Scripts\python.exe"
+$venvPythonWExe = Join-Path $venvPath "Scripts\pythonw.exe"
+$doInstall = $false
+
+if (Test-Path $venvPythonExe) {
+    Write-Host $L.VenvExists -ForegroundColor Green
+    $resp = Read-Host $L.AskInstallDeps
+    if ($resp -match "^[yj]") { $doInstall = $true }
+} else {
+    $resp = Read-Host $L.AskCreateVenv
+    if ($resp -match "^[yj]") {
+        Write-Host $L.CreatingVenv
+        python -m venv $venvPath
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host $L.VenvCreated -ForegroundColor Green
+            $doInstall = $true
+        } else {
+            Write-Error "Failed to create virtual environment."
+            exit 1
+        }
+    }
+}
+
+if ($doInstall) {
+    if (Test-Path $venvPythonExe) {
+        Write-Host $L.InstallingDeps
+        & $venvPythonExe -m pip install --upgrade pip
+        & $venvPythonExe -m pip install -r requirements.txt
+        
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host $L.DepsSuccess -ForegroundColor Green
+            Write-Host $L.InstallingBrowsers
+            & $venvPythonExe -m playwright install chromium
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host $L.BrowsersSuccess -ForegroundColor Green
+            }
+        } else {
+            Write-Error "Dependency installation failed."
+            exit 1
+        }
+    }
+}
+
+# Determine correct Python path for the task
+$pythonPath = "pythonw.exe"
+if (Test-Path $venvPythonWExe) {
+    $pythonPath = Resolve-Path $venvPythonWExe
+}
+
 Write-Host ""
 
 # --- Step 4: Task ---
