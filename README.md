@@ -105,7 +105,7 @@ The installer guides you through:
 - **Language Selection**: Choose between English and German.
 - **Credentials Setup**: Enter your Timebutler email and password securely.
 - **Network Configuration**: Automatically detects your current Wi-Fi and allows you to select allowed networks from your saved profiles.
-- **Environment Setup**: Automatically checks for Python, creates a virtual environment, and installs necessary dependencies (including Playwright browsers).
+- **Environment Setup**: Automatically checks for Python (and offers to install it via Winget if missing), creates a virtual environment, and installs necessary dependencies (including Playwright browsers).
 - **Task Registration**: Registers the scheduled task to run automatically on login.
 
 #### Method 2: Manual Setup

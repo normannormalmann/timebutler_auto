@@ -32,7 +32,12 @@ $strings = @{
         
         Step3 = "Step 3: Environment Setup"
         CheckingPython = "Checking for Python..."
-        PythonNotFound = "Error: Python not found in PATH. Please install Python 3.8+."
+        PythonNotFound = "Python not found."
+        AskInstallPython = "Python is missing. Do you want to install it via Winget? (y/n)"
+        InstallingPython = "Installing Python via Winget (this may take a while)..."
+        WingetMissing = "Winget not found. Please install Python 3.8+ manually (https://python.org)."
+        PythonInstallSuccess = "✓ Python installed successfully. Refreshing environment..."
+        PythonInstallFail = "Python installation failed. Please install manually."
         VenvExists = "Virtual environment (.venv) found."
         AskCreateVenv = "Virtual environment not found. Create one now? (Recommended) (y/n)"
         CreatingVenv = "Creating virtual environment..."
@@ -78,7 +83,12 @@ $strings = @{
         
         Step3 = "Schritt 3: Umgebung einrichten"
         CheckingPython = "Prüfe Python-Installation..."
-        PythonNotFound = "Fehler: Python nicht gefunden. Bitte installiere Python 3.8+."
+        PythonNotFound = "Python nicht gefunden."
+        AskInstallPython = "Python fehlt. Soll es via Winget installiert werden? (j/n)"
+        InstallingPython = "Installiere Python via Winget (das kann dauern)..."
+        WingetMissing = "Winget nicht gefunden. Bitte installiere Python 3.8+ manuell (https://python.org)."
+        PythonInstallSuccess = "✓ Python erfolgreich installiert. Aktualisiere Umgebung..."
+        PythonInstallFail = "Python Installation fehlgeschlagen. Bitte manuell installieren."
         VenvExists = "Virtual Environment (.venv) gefunden."
         AskCreateVenv = "Kein Virtual Environment gefunden. Jetzt erstellen? (Empfohlen) (j/n)"
         CreatingVenv = "Erstelle Virtual Environment..."
@@ -225,19 +235,53 @@ Write-Host ""
 
 # --- Step 3: Python Environment ---
 Write-Host $L.Step3 -ForegroundColor Yellow
+Write-Host $L.CheckingPython
 
-# Check System Python
-$sysPythonAvailable = $false
-try {
-    $null = python --version
-    $sysPythonAvailable = $true
-} catch {
-    $sysPythonAvailable = $false
+# Helper to check python
+function Test-Python {
+    try {
+        $null = python --version
+        return $true
+    } catch {
+        return $false
+    }
 }
 
-if (-not $sysPythonAvailable) {
-    Write-Error $L.PythonNotFound
-    exit 1
+if (-not (Test-Python)) {
+    Write-Warning $L.PythonNotFound
+    # Check for winget
+    $wingetAvailable = $false
+    try { $null = winget --version; $wingetAvailable = $true } catch { $wingetAvailable = $false }
+
+    if ($wingetAvailable) {
+        $resp = Read-Host $L.AskInstallPython
+        if ($resp -match "^[yj]") {
+            Write-Host $L.InstallingPython -ForegroundColor Cyan
+            # Install Python 3 via winget
+            try {
+                winget install -e --id Python.Python.3 --scope machine --accept-package-agreements --accept-source-agreements
+                
+                # REFRESH ENVIRONMENT
+                $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+                
+                if (Test-Python) {
+                    Write-Host $L.PythonInstallSuccess -ForegroundColor Green
+                } else {
+                    Write-Error $L.PythonInstallFail
+                    exit 1
+                }
+            } catch {
+                Write-Error $L.PythonInstallFail
+                exit 1
+            }
+        } else {
+             Write-Error $L.PythonNotFound
+             exit 1
+        }
+    } else {
+        Write-Error $L.WingetMissing
+        exit 1
+    }
 }
 
 $venvPath = ".venv"
