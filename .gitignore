@@ -18,3 +18,11 @@ state/*
 *.html
 *.png
 login_succeed.html
+
+# User-specific task configuration files (contain personal data)
+*.xml
+!*.sample.xml
+
+# PowerShell helper scripts (user-specific)
+*.ps1
+!setup_task.ps1

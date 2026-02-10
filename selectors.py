@@ -39,6 +39,33 @@ LOGIN_SUBMIT: Sequence[str] = (
     "text=/Anmelden|Login/i",
 )
 
+# Cookie consent banner
+COOKIE_BANNER: Sequence[str] = (
+    "#cmpbox",
+    ".cmpbox",
+    "#cmpwrapper",
+    ".cmpwrapper",
+    "div[id*='cookie']",
+    "div[class*='cookie']",
+    "div[id*='consent']",
+    "div[class*='consent']",
+)
+
+COOKIE_ACCEPT: Sequence[str] = (
+    "#cmpwelcomebtnyes",
+    "a:has-text('Alle akzeptieren')",
+    "a:has-text('Alles akzeptieren')",
+    "button:has-text('Alle akzeptieren')",
+    "button:has-text('Alles akzeptieren')",
+    "a:has-text('Akzeptieren')",
+    "button:has-text('Akzeptieren')",
+    "button:has-text('Accept All')",
+    "button[id*='accept']",
+    "button[class*='accept']",
+    "#cmpbntyes",
+    ".cmpbtnyes",
+)
+
 
 # Dashboard / stamping controls
 STEMPEL_NAV_LINKS: Sequence[str] = (
@@ -122,3 +149,104 @@ def is_any_visible(page: Page, selectors: Iterable[str]) -> bool:
         except TimeoutError:
             continue
     return False
+
+
+def close_cookie_banner(page: Page, logger=None) -> bool:
+    """
+    Attempts to close cookie consent banners.
+
+    Returns:
+        True if banner was found and closed, False otherwise.
+    """
+    try:
+        if logger:
+            logger.debug("Checking for cookie banner...")
+
+        # Wait a bit for banner to appear (it might be lazy-loaded)
+        page.wait_for_timeout(500)
+
+        # Try to find banner with longer timeout
+        banner_found = False
+        for selector in COOKIE_BANNER:
+            locator = page.locator(selector).first
+            try:
+                locator.wait_for(state="visible", timeout=3_000)
+                banner_found = True
+                if logger:
+                    logger.info(f"Cookie consent banner detected: {selector}")
+                break
+            except Exception:
+                continue
+
+        if not banner_found:
+            if logger:
+                logger.debug("No cookie banner detected.")
+            return False
+
+        if logger:
+            logger.info("Attempting to close cookie banner...")
+
+        # Strategy 1: Try to find and click accept button
+        for selector in COOKIE_ACCEPT:
+            locator = page.locator(selector).first
+            try:
+                locator.wait_for(state="visible", timeout=2_000)
+
+                # Try clicking with force to bypass overlay issues
+                locator.click(force=True, timeout=5_000)
+
+                if logger:
+                    logger.info(f"Successfully clicked accept button: {selector}")
+
+                # Wait a moment for the banner to disappear
+                page.wait_for_timeout(1000)
+
+                # Verify banner is gone
+                if not is_any_visible(page, COOKIE_BANNER):
+                    if logger:
+                        logger.info("Cookie banner closed successfully.")
+                    return True
+
+            except Exception:
+                continue
+
+        # Strategy 2: No accept button found - remove banner with JavaScript
+        if logger:
+            logger.warning("Could not find accept button. Removing banner with JavaScript...")
+
+        try:
+            result = page.evaluate("""
+                () => {
+                    const banner = document.querySelector('#cmpbox') ||
+                                   document.querySelector('.cmpbox') ||
+                                   document.querySelector('#cmpwrapper') ||
+                                   document.querySelector('.cmpwrapper');
+                    if (banner) {
+                        banner.style.display = 'none';
+                        banner.style.visibility = 'hidden';
+                        banner.style.pointerEvents = 'none';
+                        banner.remove();
+                        return 'Banner removed';
+                    }
+                    return 'No banner found';
+                }
+            """)
+
+            if logger:
+                logger.info(f"JavaScript result: {result}")
+
+            # Wait a moment for DOM to update
+            page.wait_for_timeout(500)
+
+            return True
+
+        except Exception as exc:
+            if logger:
+                logger.warning(f"Failed to remove banner with JavaScript: {exc}")
+
+        return False
+
+    except Exception as exc:
+        if logger:
+            logger.warning(f"Error while closing cookie banner: {exc}")
+        return False

@@ -209,6 +209,10 @@ def perform_login(page, username: str, password: str, logger: logging.Logger) ->
     sel.fill_first(page, sel.LOGIN_USER, username)
     sel.fill_first(page, sel.LOGIN_PASS, "")
     sel.fill_first(page, sel.LOGIN_PASS, password)
+
+    # Close cookie consent banner before clicking submit
+    sel.close_cookie_banner(page, logger)
+
     sel.click_first(page, sel.LOGIN_SUBMIT)
 
     # Wait for page to navigate and load after login
