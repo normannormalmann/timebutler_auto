@@ -5,6 +5,7 @@ Automated time tracking script for [Timebutler](https://app.timebutler.com/). Th
 ## Features
 
 - **Automated Login**: Handles login using credentials stored in environment variables.
+- **Cookie Consent Handler**: Automatically detects and closes cookie consent banners (e.g., consentmanager.net).
 - **SSID Filtering**: Only runs when connected to specified Wi-Fi networks (configurable via `config/settings.json`).
 - **Run Once Per Day**: Prevents multiple punch-ins on the same day unless forced.
 - **Headless Mode**: Runs silently in the background by default.
@@ -85,21 +86,50 @@ python timebutler_run.py --force-run --headful
 ```
 
 ### Automation (Windows Task Scheduler)
-To run this automatically when you log in or connect to a network, you can use the Windows Task Scheduler.
+
+#### Method 1: Using the setup script (Recommended)
+
+The easiest way to create a scheduled task is using the provided PowerShell script:
+
+```powershell
+# Open PowerShell as Administrator
+cd "C:\Path\To\timebutler_auto"
+.\setup_task.ps1
+```
+
+This will create a scheduled task named "TimebutlerAuto" that:
+- Runs when you log on
+- Uses `pythonw.exe` (background execution, no console window)
+- Can optionally trigger on WLAN connection events (with `-IncludeWlanTrigger`)
+
+**Optional parameters:**
+```powershell
+.\setup_task.ps1 -TaskName "MyTask" -PythonPath "C:\Python314\pythonw.exe" -IncludeWlanTrigger
+```
+
+#### Method 2: Manual Task Creation
+
+Alternatively, create the task manually in Task Scheduler:
 
 1.  Open **Task Scheduler**.
 2.  Create a new Basic Task.
 3.  **Trigger**: "When I log on" or "On an event".
 4.  **Action**: "Start a program".
-5.  **Program/script**: Path to your python executable inside the venv (e.g., `C:\Path\To\timebutler_auto\.venv\Scripts\python.exe`).
-6.  **Add arguments**: `timebutler_run.py` (and optionally `--headful` etc.).
+5.  **Program/script**: Path to your python executable (e.g., `C:\Python314\pythonw.exe`).
+6.  **Add arguments**: Full path to `timebutler_run.py` (e.g., `C:\Path\To\timebutler_auto\timebutler_run.py`).
 7.  **Start in**: The directory containing the script (e.g., `C:\Path\To\timebutler_auto`).
+
+**Important:** Use `pythonw.exe` instead of `python.exe` to run the script silently in the background.
 
 ## Troubleshooting
 
 - **Logs**: Check `logs/timebutler.log` for execution details.
 - **Screenshots**: If the script fails, error screenshots and HTML dumps are saved in the `state/` directory.
 - **"Netsh command not found"**: Ensure you are running on Windows, as the script uses `netsh` to detect the SSID.
+- **Cookie Banner Issues**: The script automatically handles most cookie consent banners. If login fails:
+  - Run with `--headful --debug` to see what's happening
+  - Check if a new banner type has been implemented by the website
+  - The script supports multiple banner types (consentmanager.net and similar)
 
 ## License
 
