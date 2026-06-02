@@ -1,5 +1,7 @@
 # Timebutler Auto-Punch
 
+[![CI](https://github.com/normannormalmann/timebutler_auto/actions/workflows/ci.yml/badge.svg)](https://github.com/normannormalmann/timebutler_auto/actions/workflows/ci.yml)
+
 Automated time tracking script for [Timebutler](https://app.timebutler.com/). This tool automatically logs you in and "punches in" (starts time recording) when you are connected to specific Wi-Fi networks (e.g., your office Wi-Fi).
 
 ## Features
@@ -21,8 +23,8 @@ Automated time tracking script for [Timebutler](https://app.timebutler.com/). Th
 
 1.  **Clone the repository:**
     ```bash
-    git clone https://github.com/yourusername/timebutler-auto.git
-    cd timebutler-auto
+    git clone https://github.com/normannormalmann/timebutler_auto.git
+    cd timebutler_auto
     ```
 
 2.  **Create a virtual environment (recommended):**
@@ -113,11 +115,23 @@ The installer guides you through:
 If you prefer to configure everything manually:
 
 1.  **Configure Credentials**: Copy `.env.sample` to `.env` and fill in your details.
-2.  **Configure Networks**: Copy `config/settings.sample.json` to `config/settings.json` and add your SSIDs.
-3.  **Register Task**: Run the underlying setup script:
+2.  **Configure Networks**: Copy `config/settings.sample.json` to `config/settings.json` and add your SSIDs (save as UTF-8 if they contain umlauts).
+3.  **Register Task**: Run the underlying setup script (requires an elevated PowerShell):
     ```powershell
-    .\setup_task.ps1
+    .\setup_task.ps1 -PythonPath "C:\Path\To\pythonw.exe" -IncludeWlanTrigger
     ```
+    - `-PythonPath`: Path to `pythonw.exe` (your venv's or the system one). Defaults to `pythonw.exe` from `PATH`.
+    - `-IncludeWlanTrigger`: Strongly recommended, see below.
+
+#### When does the task actually run? (Triggers)
+
+By default the task only has a **logon trigger** — it fires when you *sign in* to Windows (after a reboot or sign-out). **Unlocking your laptop after sleep is not a logon**, so if you usually just close the lid, the task would rarely run.
+
+The `-IncludeWlanTrigger` switch adds an **event trigger on WLAN connections** (WLAN-AutoConfig events 8001/8002): the task also fires whenever Wi-Fi (re)connects — including waking from sleep in the office. The script's SSID filter and once-per-day guard make sure this never double-punches.
+
+#### Importing a task XML (not recommended)
+
+Prefer `setup_task.ps1` over importing an XML with `schtasks /create /xml`. If the XML's declared encoding does not match its actual file encoding, non-ASCII characters in paths (e.g. umlauts in your user name) get corrupted on import and the task fails on every run with error `0x8007010B` ("The directory name is invalid").
 
 Alternatively, create the task manually in Task Scheduler:
 
@@ -135,11 +149,27 @@ Alternatively, create the task manually in Task Scheduler:
 
 - **Logs**: Check `logs/timebutler.log` for execution details.
 - **Screenshots**: If the script fails, error screenshots and HTML dumps are saved in the `state/` directory.
+- **Task never seems to run**: Check `Get-ScheduledTaskInfo -TaskName "TimebutlerAuto"`:
+  - `LastTaskResult 2147942667` (`0x8007010B`, "directory name is invalid"): the registered path is broken — typically caused by importing a task XML with a mismatched encoding declaration (umlauts in the path get corrupted). Re-register with `.\setup_task.ps1`.
+  - Task only fires at sign-in, never after sleep: you are missing the WLAN trigger — re-register with `-IncludeWlanTrigger` (see above).
+- **SSID with umlauts never matches**: Make sure `config/settings.json` is saved as UTF-8. The script decodes `netsh` output with the OEM codepage, so umlauts in Wi-Fi names are supported.
 - **"Netsh command not found"**: Ensure you are running on Windows, as the script uses `netsh` to detect the SSID.
 - **Cookie Banner Issues**: The script automatically handles most cookie consent banners. If login fails:
   - Run with `--headful --debug` to see what's happening
   - Check if a new banner type has been implemented by the website
   - The script supports multiple banner types (consentmanager.net and similar)
+
+## Development
+
+Run the test suite with:
+
+```bash
+python -m pytest
+```
+
+The tests mock all network and browser interaction, so they run without Playwright browsers or a Timebutler account. CI runs them on Ubuntu and Windows (Python 3.9 and 3.12) for every push and pull request.
+
+Note: the selector definitions live in `tb_selectors.py` — the module is deliberately *not* named `selectors.py`, since that would shadow Python's standard library module of the same name.
 
 ## License
 
