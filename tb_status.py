@@ -21,6 +21,11 @@ _PS_TEMPLATE = (
 
 
 def get_task_info(task_name: str = TASK_NAME) -> Optional[dict]:
+    """Queries the scheduled task via PowerShell, returns a dict or None.
+
+    task_name is interpolated into a PowerShell command string - pass only
+    trusted constants, never user input.
+    """
     try:
         proc = subprocess.run(
             ["powershell", "-NoProfile", "-Command", _PS_TEMPLATE.format(name=task_name)],
@@ -73,7 +78,7 @@ def build_status_report(
     lines.append(f"Heute gestempelt: {'ja' if stamped else 'nein'}")
 
     if task_info:
-        result = int(task_info.get("LastTaskResult", 0))
+        result = int(task_info.get("LastTaskResult") or 0)
         health = "OK" if result == 0 else f"FEHLER 0x{result & 0xFFFFFFFF:08X}"
         lines.append(
             f"Task: {task_info.get('State', '?')}, "

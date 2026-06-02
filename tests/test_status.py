@@ -71,3 +71,15 @@ def test_build_status_report_missing_task(tmp_path):
     )
     assert "nicht registriert" in report
     assert "NICHT in allowed_ssids" in report
+
+
+def test_build_status_report_handles_null_task_result(tmp_path):
+    # ConvertTo-Json emits null for LastTaskResult when the task never ran
+    report = tb_status.build_status_report(
+        None,
+        set(),
+        tmp_path / "x",
+        tmp_path / "y",
+        {"State": "Ready", "LastRunTime": "", "LastTaskResult": None},
+    )
+    assert "OK" in report
