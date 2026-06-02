@@ -12,6 +12,8 @@ Automated time tracking script for [Timebutler](https://app.timebutler.com/). Th
 - **Run Once Per Day**: Prevents multiple punch-ins on the same day unless forced.
 - **Headless Mode**: Runs silently in the background by default.
 - **Error Handling**: Captures screenshots and HTML dumps if an error occurs.
+- **Failure Notifications**: Shows a Windows notification when a punch-in attempt fails (and on success).
+- **Credential Manager**: The password is stored DPAPI-encrypted in the Windows Credential Manager; an existing `.env` password is migrated automatically on the first run.
 - **State Persistence**: Saves login session to avoid repeated logins.
 
 ## Prerequisites
@@ -52,6 +54,8 @@ TIMEBUTLER_USERNAME=your.email@example.com
 TIMEBUTLER_PASSWORD=YourStrongPassword
 ```
 
+On the first run, the password is moved into the Windows Credential Manager (DPAPI-encrypted) and the `TIMEBUTLER_PASSWORD` line is removed from `.env`. After migration, `.env` only carries `TIMEBUTLER_USERNAME`. Keeping `TIMEBUTLER_PASSWORD` in `.env` still works as a fallback — for example if the `keyring` package is not installed.
+
 ### 2. Allowed Wi-Fi Networks
 Create a `config/settings.json` file (based on `config/settings.sample.json`) to define which Wi-Fi networks should trigger the automation:
 
@@ -81,10 +85,27 @@ python timebutler_run.py
 - `--debug`: Enable verbose logging.
 - `--username`: Override the username from `.env`.
 - `--password`: Override the password from `.env`.
+- `--status`: Print a local status report (current Wi-Fi, whether you punched in today, scheduled task health, last log line) without opening a browser.
 
 Example:
 ```bash
 python timebutler_run.py --force-run --headful
+```
+
+### Checking the Setup
+
+```bash
+python timebutler_run.py --status
+```
+
+Example output:
+```
+Timebutler Auto - Status
+----------------------------------------
+WLAN: YourCompanyWiFi (erlaubt)
+Heute gestempelt: ja
+Task: Ready, letzter Lauf 06/02/2026 08:01:12 -> OK
+Letzter Log-Eintrag: 2026-06-02 08:01:15 INFO Timebutler automation finished successfully.
 ```
 
 ### Automation (Windows Task Scheduler)
@@ -147,6 +168,7 @@ Alternatively, create the task manually in Task Scheduler:
 
 ## Troubleshooting
 
+- **Quick health check**: Run `python timebutler_run.py --status` first — it shows the scheduled task's last result code and the last log line.
 - **Logs**: Check `logs/timebutler.log` for execution details.
 - **Screenshots**: If the script fails, error screenshots and HTML dumps are saved in the `state/` directory.
 - **Task never seems to run**: Check `Get-ScheduledTaskInfo -TaskName "TimebutlerAuto"`:
