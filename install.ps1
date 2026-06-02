@@ -1,4 +1,4 @@
-# Timebutler Auto - Installer
+﻿# Timebutler Auto - Installer
 
 $ErrorActionPreference = "Stop"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
@@ -139,8 +139,15 @@ if (-not $isAdmin) {
 Write-Host $L.Step1 -ForegroundColor Yellow
 if (-not (Test-Path ".env")) {
     $email = Read-Host $L.AskEmail
-    $pass = Read-Host $L.AskPass
-    
+    # Read the password masked so it is not echoed to the console
+    $passSecure = Read-Host $L.AskPass -AsSecureString
+    $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($passSecure)
+    try {
+        $pass = [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
+    } finally {
+        [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
+    }
+
     $envContent = "TIMEBUTLER_USERNAME=$email`r`nTIMEBUTLER_PASSWORD=$pass"
     Set-Content -Path ".env" -Value $envContent -Encoding utf8
     Write-Host $L.EnvCreated -ForegroundColor Green

@@ -5,6 +5,7 @@ if the UI changes slightly (text, role, css classes, etc.).
 """
 from __future__ import annotations
 
+import time
 from typing import Iterable, Sequence, Any
 
 try:
@@ -110,15 +111,24 @@ def _find_first_visible(
     selectors: Iterable[str],
     timeout: float = 10_000,
 ) -> Locator:
-    last_error: TimeoutError | None = None
-    for selector in selectors:
-        locator = page.locator(selector)
-        try:
-            locator.wait_for(state="visible", timeout=timeout)
-            return locator
-        except TimeoutError as exc:
-            last_error = exc
-    raise TimeoutError(f"Could not find any selector from: {selectors}") from last_error
+    """Polls all selectors in short rounds within a *shared* timeout budget.
+
+    Previously each selector waited the full timeout sequentially, so a
+    chain of 8 selectors could block for 80s before failing.
+    """
+    selectors = tuple(selectors)
+    deadline = time.monotonic() + timeout / 1000
+    poll_timeout = 500  # ms per selector per round
+    while True:
+        for selector in selectors:
+            locator = page.locator(selector).first
+            try:
+                locator.wait_for(state="visible", timeout=poll_timeout)
+                return locator
+            except TimeoutError:
+                continue
+        if time.monotonic() >= deadline:
+            raise TimeoutError(f"Could not find any selector from: {selectors}")
 
 
 def fill_first(

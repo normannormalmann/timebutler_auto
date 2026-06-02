@@ -15,10 +15,10 @@ from typing import Optional, Set
 try:
     from dotenv import load_dotenv
 except ImportError:  # pragma: no cover - optional dependency
-        load_dotenv = None  # type: ignore
+    load_dotenv = None  # type: ignore
 
-import selectors as sel  # local module
-from selectors import TimeoutError
+import tb_selectors as sel  # local module
+from tb_selectors import TimeoutError
 
 try:
     from playwright.sync_api import sync_playwright
@@ -68,7 +68,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--password",
-        help="Override password (otherwise read from TIMEBUTLER_PASSWORD env).",
+        help=(
+            "Override password (otherwise read from TIMEBUTLER_PASSWORD env). "
+            "Note: command-line arguments are visible in the process list; "
+            "prefer the .env file."
+        ),
     )
     return parser.parse_args()
 
@@ -120,7 +124,6 @@ def init_logging(debug: bool) -> logging.Logger:
 
 def load_credentials(args: argparse.Namespace, logger: logging.Logger) -> tuple[str, str]:
     if load_dotenv is not None:
-        load_dotenv(BASE_DIR / ".." / ".env")
         load_dotenv(BASE_DIR / ".env")
 
     username = args.username or os.getenv("TIMEBUTLER_USERNAME")
@@ -136,12 +139,15 @@ def load_credentials(args: argparse.Namespace, logger: logging.Logger) -> tuple[
 
 def get_current_ssid(logger: logging.Logger) -> Optional[str]:
     try:
+        # netsh writes in the OEM codepage (e.g. cp850 on German systems),
+        # not UTF-8 - decoding with "oem" keeps umlauts in SSIDs intact.
         proc = subprocess.run(
             ["netsh", "wlan", "show", "interfaces"],
             capture_output=True,
             text=True,
             check=False,
-            encoding="utf-8",
+            encoding="oem" if sys.platform == "win32" else "utf-8",
+            errors="replace",
         )
     except FileNotFoundError:
         logger.error("netsh command not found. Cannot determine SSID.")
@@ -192,7 +198,8 @@ def is_logged_in(page) -> bool:
         return False
 
     # If we're on the main dashboard /do page, we're logged in
-    if "/do" in url and "login" not in url.lower():
+    # (match /do as a path segment, not substrings like /download)
+    if re.search(r"/do(?:[/?#]|$)", url) and "login" not in url.lower():
         return True
 
     # Check for logged-in indicators
@@ -318,6 +325,9 @@ def run_playwright(ctx: RunContext, username: str, password: str) -> None:
 
 def show_notification(title: str, message: str) -> None:
     """Displays a Windows notification using PowerShell."""
+    # Escape single quotes so the values are safe inside PowerShell '...' literals.
+    title = title.replace("'", "''")
+    message = message.replace("'", "''")
     ps_script = f"""
     Add-Type -AssemblyName System.Windows.Forms
     Add-Type -AssemblyName System.Drawing
