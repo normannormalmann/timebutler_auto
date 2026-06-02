@@ -63,9 +63,14 @@ def remove_password_from_env_file(env_path: Path, logger) -> None:
         content = "\n".join(kept)
         if content:
             content += "\n"
-        env_path.write_text(content, encoding="utf-8")
+        # Atomic replace: never leave a truncated .env behind if the process dies mid-write.
+        tmp_path = env_path.with_suffix(".env.tmp")
+        tmp_path.write_text(content, encoding="utf-8")
+        os.replace(tmp_path, env_path)
         logger.info("Removed TIMEBUTLER_PASSWORD from %s.", env_path)
-    except OSError as exc:
+    except (OSError, UnicodeDecodeError) as exc:
+        # UnicodeDecodeError: a corrupt .env must never crash the run after the
+        # password is already safe in the Credential Manager.
         logger.warning("Could not rewrite %s: %s", env_path, exc)
 
 
@@ -87,7 +92,9 @@ def load_credentials(args, base_dir: Path, logger) -> Tuple[Optional[str], Optio
     """Returns (username, password); either is None when unresolvable."""
     env_path = base_dir / ".env"
     if load_dotenv is not None:
-        load_dotenv(env_path, encoding="utf-8-sig")
+        # override=True: the file is authoritative; a stale TIMEBUTLER_PASSWORD
+        # in the process environment must not become the migration source.
+        load_dotenv(env_path, encoding="utf-8-sig", override=True)
 
     username = args.username or os.getenv("TIMEBUTLER_USERNAME")
     if not username:

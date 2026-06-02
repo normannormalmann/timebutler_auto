@@ -106,3 +106,26 @@ def test_missing_credentials_returns_none(tmp_path, monkeypatch):
     monkeypatch.setattr(cred, "keyring", None)
     user, pw = cred.load_credentials(make_args(), tmp_path, DummyLogger())
     assert (user, pw) == (None, None)
+
+
+def test_env_password_updates_differing_keyring_entry(tmp_path, monkeypatch):
+    # user rotated the password in .env after an earlier migration
+    env = tmp_path / ".env"
+    env.write_text("TIMEBUTLER_USERNAME=u\nTIMEBUTLER_PASSWORD=new\n", encoding="utf-8")
+    fake = FakeKeyring()
+    fake.set_password("timebutler", "u", "old")
+    monkeypatch.setattr(cred, "keyring", fake)
+    user, pw = cred.load_credentials(make_args(), tmp_path, DummyLogger())
+    assert pw == "new"
+    assert fake.store[("timebutler", "u")] == "new"
+    assert "TIMEBUTLER_PASSWORD" not in env.read_text(encoding="utf-8")
+
+
+def test_migration_handles_spaced_assignment(tmp_path, monkeypatch):
+    env = tmp_path / ".env"
+    env.write_text("TIMEBUTLER_USERNAME=u\nTIMEBUTLER_PASSWORD = spaced\n", encoding="utf-8")
+    fake = FakeKeyring()
+    monkeypatch.setattr(cred, "keyring", fake)
+    user, pw = cred.load_credentials(make_args(), tmp_path, DummyLogger())
+    assert pw == "spaced"
+    assert "TIMEBUTLER_PASSWORD" not in env.read_text(encoding="utf-8")

@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-import os
 import re
 import subprocess
 import sys
@@ -116,7 +115,6 @@ def init_logging(debug: bool) -> logging.Logger:
     logger.addHandler(console)
 
     return logger
-
 
 
 def get_current_ssid(logger: logging.Logger) -> Optional[str]:
