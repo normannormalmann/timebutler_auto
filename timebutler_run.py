@@ -12,13 +12,9 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Optional, Set
 
-try:
-    from dotenv import load_dotenv
-except ImportError:  # pragma: no cover - optional dependency
-    load_dotenv = None  # type: ignore
-
 import tb_selectors as sel  # local module
 from tb_selectors import TimeoutError
+import tb_credentials
 
 try:
     from playwright.sync_api import sync_playwright
@@ -121,20 +117,6 @@ def init_logging(debug: bool) -> logging.Logger:
 
     return logger
 
-
-def load_credentials(args: argparse.Namespace, logger: logging.Logger) -> tuple[str, str]:
-    if load_dotenv is not None:
-        load_dotenv(BASE_DIR / ".env")
-
-    username = args.username or os.getenv("TIMEBUTLER_USERNAME")
-    password = args.password or os.getenv("TIMEBUTLER_PASSWORD")
-
-    if not username or not password:
-        logger.error(
-            "Missing credentials. Provide TIMEBUTLER_USERNAME and TIMEBUTLER_PASSWORD environment variables."
-        )
-        sys.exit(2)
-    return username, password
 
 
 def get_current_ssid(logger: logging.Logger) -> Optional[str]:
@@ -351,7 +333,16 @@ def main() -> int:
     args = parse_args()
     ensure_directories()
     logger = init_logging(debug=args.debug)
-    username, password = load_credentials(args, logger)
+    username, password = tb_credentials.load_credentials(args, BASE_DIR, logger)
+    if not username or not password:
+        logger.error(
+            "Missing credentials. Provide TIMEBUTLER_USERNAME and TIMEBUTLER_PASSWORD "
+            "(.env) or store the password in the Windows Credential Manager."
+        )
+        show_notification(
+            "Timebutler Auto", "Zugangsdaten fehlen - bitte Konfiguration pruefen."
+        )
+        return 2
     allowed_ssids = load_allowed_ssids(logger)
 
     ctx = RunContext(args, logger)
