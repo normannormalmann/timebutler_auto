@@ -64,7 +64,7 @@ def remove_password_from_env_file(env_path: Path, logger) -> None:
         if content:
             content += "\n"
         # Atomic replace: never leave a truncated .env behind if the process dies mid-write.
-        tmp_path = env_path.with_suffix(".env.tmp")
+        tmp_path = env_path.with_name(env_path.name + ".tmp")
         tmp_path.write_text(content, encoding="utf-8")
         os.replace(tmp_path, env_path)
         logger.info("Removed TIMEBUTLER_PASSWORD from %s.", env_path)
