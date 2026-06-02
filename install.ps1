@@ -135,6 +135,9 @@ if (-not $isAdmin) {
     exit
 }
 
+# BOM-less UTF-8 for all config files this script writes (PS 5.1 -Encoding utf8 would add a BOM)
+$utf8NoBom = New-Object System.Text.UTF8Encoding $false
+
 # --- Step 1: Credentials ---
 Write-Host $L.Step1 -ForegroundColor Yellow
 if (-not (Test-Path ".env")) {
@@ -149,7 +152,6 @@ if (-not (Test-Path ".env")) {
     }
 
     $envContent = "TIMEBUTLER_USERNAME=$email`r`nTIMEBUTLER_PASSWORD=$pass"
-    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
     [System.IO.File]::WriteAllText((Join-Path (Get-Location).Path ".env"), $envContent, $utf8NoBom)
     Write-Host $L.EnvCreated -ForegroundColor Green
 } else {
@@ -237,7 +239,6 @@ if (-not (Test-Path $settingsDir)) { New-Item -ItemType Directory -Path $setting
 $settingsPath = "$settingsDir/settings.json"
 
 $jsonPayload = @{ allowed_ssids = @($finalSSIDs) } | ConvertTo-Json
-$utf8NoBom = New-Object System.Text.UTF8Encoding $false
 [System.IO.File]::WriteAllText((Join-Path (Get-Location).Path $settingsPath), $jsonPayload, $utf8NoBom)
 Write-Host ($L.SettingsSaved -f $finalSSIDs.Count) -ForegroundColor Green
 Write-Host ""
