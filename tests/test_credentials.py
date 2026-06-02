@@ -129,3 +129,12 @@ def test_migration_handles_spaced_assignment(tmp_path, monkeypatch):
     user, pw = cred.load_credentials(make_args(), tmp_path, DummyLogger())
     assert pw == "spaced"
     assert "TIMEBUTLER_PASSWORD" not in env.read_text(encoding="utf-8")
+
+
+def test_load_credentials_accepts_bom_env(tmp_path, monkeypatch):
+    # PS 5.1 may have written the .env with a BOM before the installer fix
+    env = tmp_path / ".env"
+    env.write_bytes(b"\xef\xbb\xbfTIMEBUTLER_USERNAME=u\nTIMEBUTLER_PASSWORD=p\n")
+    monkeypatch.setattr(cred, "keyring", None)
+    user, pw = cred.load_credentials(make_args(), tmp_path, DummyLogger())
+    assert (user, pw) == ("u", "p")
