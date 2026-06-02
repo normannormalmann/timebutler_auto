@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from datetime import date, timedelta
 from types import SimpleNamespace
 
@@ -126,3 +127,38 @@ def test_load_allowed_ssids_accepts_bom(tmp_path, monkeypatch):
     settings.write_bytes(b'\xef\xbb\xbf{"allowed_ssids": ["OfficeWiFi"]}')
     monkeypatch.setattr(tb, "SETTINGS_FILE", settings)
     assert tb.load_allowed_ssids(DummyLogger()) == {"OfficeWiFi"}
+
+
+def _run_main(monkeypatch, *, run_playwright, ssid="OfficeWiFi"):
+    """Drives tb.main() with everything external mocked; returns (exit_code, notifications)."""
+    notes = []
+    monkeypatch.setattr(sys, "argv", ["timebutler_run.py"])
+    monkeypatch.setattr(tb, "ensure_directories", lambda: None)
+    monkeypatch.setattr(tb, "init_logging", lambda debug: DummyLogger())
+    monkeypatch.setattr(
+        tb.tb_credentials, "load_credentials", lambda a, b, l: ("u", "p")
+    )
+    monkeypatch.setattr(tb, "load_allowed_ssids", lambda l: {"OfficeWiFi"})
+    monkeypatch.setattr(tb, "get_current_ssid", lambda l: ssid)
+    monkeypatch.setattr(tb, "already_ran_today", lambda f, l: False)
+    monkeypatch.setattr(tb, "write_last_run", lambda l: None)
+    monkeypatch.setattr(tb, "run_playwright", run_playwright)
+    monkeypatch.setattr(tb, "show_notification", lambda t, m: notes.append(m))
+    return tb.main(), notes
+
+
+def test_main_notifies_on_failure(monkeypatch):
+    def boom(ctx, username, password):
+        raise RuntimeError("login broken")
+
+    code, notes = _run_main(monkeypatch, run_playwright=boom)
+    assert code == 1
+    assert any("fehlgeschlagen" in n for n in notes)
+
+
+def test_main_no_notification_on_ssid_skip(monkeypatch):
+    code, notes = _run_main(
+        monkeypatch, run_playwright=lambda *a: None, ssid="ElsewhereWiFi"
+    )
+    assert code == 0
+    assert notes == []

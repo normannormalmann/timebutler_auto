@@ -364,6 +364,9 @@ def main() -> int:
         run_playwright(ctx, username, password)
     except Exception as exc:
         logger.exception("Automation failed: %s", exc)
+        show_notification(
+            "Timebutler Auto", "Einstempeln fehlgeschlagen! Details: logs\\timebutler.log"
+        )
         return 1
 
     write_last_run(logger)
