@@ -162,3 +162,21 @@ def test_main_no_notification_on_ssid_skip(monkeypatch):
     )
     assert code == 0
     assert notes == []
+
+
+def test_main_status_short_circuits(monkeypatch, capsys):
+    monkeypatch.setattr(sys, "argv", ["timebutler_run.py", "--status"])
+    monkeypatch.setattr(tb, "ensure_directories", lambda: None)
+    monkeypatch.setattr(tb, "init_logging", lambda debug: DummyLogger())
+    monkeypatch.setattr(tb, "load_allowed_ssids", lambda l: set())
+    monkeypatch.setattr(tb, "get_current_ssid", lambda l: None)
+    monkeypatch.setattr(tb.tb_status, "get_task_info", lambda: None)
+    called = []
+    monkeypatch.setattr(
+        tb.tb_credentials,
+        "load_credentials",
+        lambda *a: called.append(1) or ("u", "p"),
+    )
+    assert tb.main() == 0
+    assert called == []  # --status must not touch credentials
+    assert "Timebutler Auto - Status" in capsys.readouterr().out

@@ -14,6 +14,7 @@ from typing import Optional, Set
 import tb_selectors as sel  # local module
 from tb_selectors import TimeoutError
 import tb_credentials
+import tb_status
 
 try:
     from playwright.sync_api import sync_playwright
@@ -56,6 +57,11 @@ def parse_args() -> argparse.Namespace:
         "--debug",
         action="store_true",
         help="Enable verbose debug logging.",
+    )
+    parser.add_argument(
+        "--status",
+        action="store_true",
+        help="Print a local status report (Wi-Fi, last run, task health) and exit.",
     )
     parser.add_argument(
         "--username",
@@ -331,6 +337,16 @@ def main() -> int:
     args = parse_args()
     ensure_directories()
     logger = init_logging(debug=args.debug)
+    if args.status:
+        report = tb_status.build_status_report(
+            get_current_ssid(logger),
+            load_allowed_ssids(logger),
+            LAST_RUN_FILE,
+            LOG_FILE,
+            tb_status.get_task_info(),
+        )
+        print(report)
+        return 0
     username, password = tb_credentials.load_credentials(args, BASE_DIR, logger)
     if not username or not password:
         logger.error(
