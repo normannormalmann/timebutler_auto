@@ -118,3 +118,11 @@ def test_load_allowed_ssids_invalid_json(tmp_path, monkeypatch):
     settings.write_text("{not valid json", encoding="utf-8")
     monkeypatch.setattr(tb, "SETTINGS_FILE", settings)
     assert tb.load_allowed_ssids(DummyLogger()) == set()
+
+
+def test_load_allowed_ssids_accepts_bom(tmp_path, monkeypatch):
+    # Windows PowerShell 5.1 writes UTF-8 *with* BOM; json.loads chokes on it
+    settings = tmp_path / "settings.json"
+    settings.write_bytes(b'\xef\xbb\xbf{"allowed_ssids": ["OfficeWiFi"]}')
+    monkeypatch.setattr(tb, "SETTINGS_FILE", settings)
+    assert tb.load_allowed_ssids(DummyLogger()) == {"OfficeWiFi"}

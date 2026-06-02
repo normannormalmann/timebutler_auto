@@ -149,7 +149,8 @@ if (-not (Test-Path ".env")) {
     }
 
     $envContent = "TIMEBUTLER_USERNAME=$email`r`nTIMEBUTLER_PASSWORD=$pass"
-    Set-Content -Path ".env" -Value $envContent -Encoding utf8
+    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+    [System.IO.File]::WriteAllText((Join-Path (Get-Location).Path ".env"), $envContent, $utf8NoBom)
     Write-Host $L.EnvCreated -ForegroundColor Green
 } else {
     Write-Host $L.EnvExists -ForegroundColor Gray
@@ -236,7 +237,8 @@ if (-not (Test-Path $settingsDir)) { New-Item -ItemType Directory -Path $setting
 $settingsPath = "$settingsDir/settings.json"
 
 $jsonPayload = @{ allowed_ssids = @($finalSSIDs) } | ConvertTo-Json
-Set-Content -Path $settingsPath -Value $jsonPayload -Encoding utf8
+$utf8NoBom = New-Object System.Text.UTF8Encoding $false
+[System.IO.File]::WriteAllText((Join-Path (Get-Location).Path $settingsPath), $jsonPayload, $utf8NoBom)
 Write-Host ($L.SettingsSaved -f $finalSSIDs.Count) -ForegroundColor Green
 Write-Host ""
 

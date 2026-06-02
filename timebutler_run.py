@@ -86,9 +86,9 @@ def load_allowed_ssids(logger: logging.Logger) -> Set[str]:
     if not SETTINGS_FILE.exists():
         logger.error("Settings file not found: %s", SETTINGS_FILE)
         return set()
-    
+
     try:
-        data = json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
+        data = json.loads(SETTINGS_FILE.read_text(encoding="utf-8-sig"))
         ssids = set(data.get("allowed_ssids", []))
         if not ssids:
             logger.warning("No 'allowed_ssids' found in settings file.")
