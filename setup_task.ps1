@@ -7,6 +7,9 @@ param(
     [string]$UserId = $env:USERNAME
 )
 
+# Stop on errors so a failed registration is not followed by success messages
+$ErrorActionPreference = "Stop"
+
 $projectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $scriptPath = Join-Path $projectRoot "timebutler_run.py"
 
@@ -36,7 +39,13 @@ if ($IncludeWlanTrigger.IsPresent) {
   </Query>
 </QueryList>
 "@
-    $triggers += New-ScheduledTaskTrigger -OnEvent -Subscription $subscription
+    # Windows PowerShell 5.1 has no 'New-ScheduledTaskTrigger -OnEvent',
+    # so the event trigger is built directly as a CIM instance.
+    $eventTriggerClass = Get-CimClass -ClassName MSFT_TaskEventTrigger -Namespace Root/Microsoft/Windows/TaskScheduler
+    $eventTrigger = New-CimInstance -CimClass $eventTriggerClass -ClientOnly
+    $eventTrigger.Subscription = $subscription
+    $eventTrigger.Enabled = $true
+    $triggers += $eventTrigger
 }
 
 $settings = New-ScheduledTaskSettingsSet `
