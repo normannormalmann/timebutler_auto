@@ -78,7 +78,8 @@ STEMPEL_NAV_LINKS: Sequence[str] = (
 )
 
 START_BUTTON: Sequence[str] = (
-    "#recBtnStart",
+    "#time-clock-play",  # Timebutler UI 3.x: play button in the topbar time recorder
+    "#recBtnStart",  # legacy UI (pre-3.0)
     "a:has-text('Starten')",
     "a:has-text('Kommen')",
     "button:has-text('Kommen')",
@@ -90,7 +91,9 @@ START_BUTTON: Sequence[str] = (
 )
 
 RUNNING_INDICATORS: Sequence[str] = (
-    "#recDD[data-running='1']",
+    "#time-clock[data-running='1']",  # Timebutler UI 3.x
+    "#time-clock-stop:not(.hidden)",  # UI 3.x: stop button only shows while running
+    "#recDD[data-running='1']",  # legacy UI (pre-3.0)
     ".dropdown-toggle.running",
     "[data-status*='running']",
     ".recTimeIndicator.running",
@@ -99,7 +102,8 @@ RUNNING_INDICATORS: Sequence[str] = (
 )
 
 USER_AVATAR: Sequence[str] = (
-    ".user-id-truncated",
+    "#time-clock",  # Timebutler UI 3.x: topbar time recorder only renders when logged in
+    ".user-id-truncated",  # legacy UI (pre-3.0)
     "nav [data-testid='userMenu']",
     ".user-initials",
     ".avatar-initials",
