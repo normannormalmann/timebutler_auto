@@ -12,6 +12,7 @@ Automated time tracking script for [Timebutler](https://app.timebutler.com/). Th
 - **Run Once Per Day**: Prevents multiple punch-ins on the same day unless forced.
 - **Headless Mode**: Runs silently in the background by default.
 - **Error Handling**: Captures screenshots and HTML dumps if an error occurs.
+- **Timebutler UI 3.0 Support**: Works with the redesigned Timebutler interface (topbar time recorder, rolled out June 2026). The new selectors are tried first; the legacy UI remains supported as a fallback.
 - **Failure Notifications**: Shows a Windows notification when a punch-in attempt fails (and on success).
 - **Credential Manager**: The password is stored DPAPI-encrypted in the Windows Credential Manager; an existing `.env` password is migrated automatically on the first run.
 - **State Persistence**: Saves login session to avoid repeated logins.
@@ -176,6 +177,7 @@ Alternatively, create the task manually in Task Scheduler:
   - Task only fires at sign-in, never after sleep: you are missing the WLAN trigger — re-register with `-IncludeWlanTrigger` (see above).
 - **SSID with umlauts never matches**: Make sure `config/settings.json` is saved as UTF-8. The script decodes `netsh` output with the OEM codepage, so umlauts in Wi-Fi names are supported.
 - **"Netsh command not found"**: Ensure you are running on Windows, as the script uses `netsh` to detect the SSID.
+- **"Could not locate the Kommen/Start button"**: Timebutler occasionally redesigns its UI and the start button selectors change (most recently with UI 3.0 in June 2026). Make sure you are on the latest version of this repo (`git pull`); if it still fails, run with `--headful --debug` and check the error screenshot in `state/`.
 - **Cookie Banner Issues**: The script automatically handles most cookie consent banners. If login fails:
   - Run with `--headful --debug` to see what's happening
   - Check if a new banner type has been implemented by the website
