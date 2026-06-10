@@ -35,7 +35,7 @@ The installer walks you through:
 - **Credentials** — your Timebutler email and password (stored DPAPI-encrypted in the Windows Credential Manager).
 - **Networks** — detects your current Wi-Fi and lets you pick the allowed networks from your saved profiles.
 - **Environment** — checks for Python (offers to install it via Winget), creates a virtual environment, installs dependencies and the Playwright browser.
-- **Task registration** — registers the scheduled task so the script runs automatically.
+- **Task registration** — registers the scheduled task with both triggers (sign-in and Wi-Fi connect) so the script runs automatically.
 
 When it finishes, verify the setup:
 

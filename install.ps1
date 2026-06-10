@@ -47,14 +47,18 @@ $strings = @{
         DepsSuccess = "✓ Dependencies installed."
         InstallingBrowsers = "Installing Playwright browsers..."
         BrowsersSuccess = "✓ Playwright browsers installed."
-        
+        MigratingCreds = "Moving password into the Windows Credential Manager..."
+        CredsMigrated = "✓ Password stored DPAPI-encrypted in the Windows Credential Manager."
+        CredsMigrateFail = "Could not store the password in the Credential Manager - it stays in .env and will be migrated on the first run."
+
         Step4 = "Step 4: Windows Task Registration"
-        TaskSuccess = "✓ Windows Task successfully registered!"
+        TaskSuccess = "✓ Windows Task successfully registered (triggers: logon + Wi-Fi connect)!"
         TaskError = "Error registering task: {0}"
         ScriptMissing = "setup_task.ps1 not found!"
-        
+
         Footer = "--- Installation Complete ---"
         FinalMsg = "You can manage your networks in 'config/settings.json'."
+        StatusHint = "Verify the setup anytime with: python timebutler_run.py --status"
     }
     DE = @{
         AdminRequired = "--- FEHLENDE ADMIN-RECHTE ---"
@@ -98,14 +102,18 @@ $strings = @{
         DepsSuccess = "✓ Abhängigkeiten installiert."
         InstallingBrowsers = "Installiere Playwright Browser..."
         BrowsersSuccess = "✓ Playwright Browser installiert."
-        
+        MigratingCreds = "Verschiebe Passwort in die Windows-Anmeldeinformationsverwaltung..."
+        CredsMigrated = "✓ Passwort DPAPI-verschlüsselt in der Anmeldeinformationsverwaltung gespeichert."
+        CredsMigrateFail = "Passwort konnte nicht in die Anmeldeinformationsverwaltung übernommen werden - es bleibt in der .env und wird beim ersten Lauf migriert."
+
         Step4 = "Schritt 4: Windows Task Registrierung"
-        TaskSuccess = "✓ Windows Task erfolgreich registriert!"
+        TaskSuccess = "✓ Windows Task erfolgreich registriert (Trigger: Anmeldung + WLAN-Verbindung)!"
         TaskError = "Fehler beim Registrieren des Tasks: {0}"
         ScriptMissing = "setup_task.ps1 nicht gefunden!"
-        
+
         Footer = "--- Installation abgeschlossen ---"
         FinalMsg = "Du kannst die Netzwerke später in 'config/settings.json' bearbeiten."
+        StatusHint = "Prüfe das Setup jederzeit mit: python timebutler_run.py --status"
     }
 }
 
@@ -338,6 +346,19 @@ if ($doInstall) {
     }
 }
 
+# Move the password from .env into the Windows Credential Manager right away
+# (reuses tb_credentials, the same logic the script runs on every start)
+if ((Test-Path $venvPythonExe) -and (Test-Path ".env") -and (Select-String -Path ".env" -Pattern "^TIMEBUTLER_PASSWORD=" -Quiet)) {
+    Write-Host $L.MigratingCreds
+    $migrateCode = "import argparse, logging, pathlib, tb_credentials; logging.basicConfig(level=logging.WARNING); tb_credentials.load_credentials(argparse.Namespace(username=None, password=None), pathlib.Path('.'), logging.getLogger('install'))"
+    & $venvPythonExe -c $migrateCode
+    if ($LASTEXITCODE -eq 0 -and -not (Select-String -Path ".env" -Pattern "^TIMEBUTLER_PASSWORD=" -Quiet)) {
+        Write-Host $L.CredsMigrated -ForegroundColor Green
+    } else {
+        Write-Warning $L.CredsMigrateFail
+    }
+}
+
 # Determine correct Python path for the task
 $pythonPath = "pythonw.exe"
 if (Test-Path $venvPythonWExe) {
@@ -350,7 +371,7 @@ Write-Host ""
 Write-Host $L.Step4 -ForegroundColor Yellow
 if (Test-Path "setup_task.ps1") {
     try {
-        .\setup_task.ps1 -PythonPath $pythonPath -ErrorAction Stop
+        .\setup_task.ps1 -PythonPath $pythonPath -IncludeWlanTrigger -ErrorAction Stop
         Write-Host $L.TaskSuccess -ForegroundColor Green
     } catch {
         Write-Error ($L.TaskError -f $_)
@@ -364,6 +385,7 @@ if (Test-Path "setup_task.ps1") {
 Write-Host ""
 Write-Host $L.Footer -ForegroundColor Cyan
 Write-Host $L.FinalMsg
+Write-Host $L.StatusHint -ForegroundColor Cyan
 Write-Host $L.PressAnyKey
 $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
 
