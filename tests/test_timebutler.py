@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
+import time
 from datetime import date, timedelta
 from types import SimpleNamespace
 
@@ -129,11 +131,61 @@ def test_load_allowed_ssids_accepts_bom(tmp_path, monkeypatch):
     assert tb.load_allowed_ssids(DummyLogger()) == {"OfficeWiFi"}
 
 
+def _aged_file(path, days):
+    path.write_text("x", encoding="utf-8")
+    old = time.time() - days * 86400
+    os.utime(path, (old, old))
+
+
+def test_cleanup_removes_old_error_artifacts(tmp_path):
+    old_html = tmp_path / "error_20260101_000000.html"
+    old_png = tmp_path / "error_20260101_000000.png"
+    fresh_html = tmp_path / "error_20260609_120000.html"
+    _aged_file(old_html, 31)
+    _aged_file(old_png, 31)
+    _aged_file(fresh_html, 1)
+
+    tb.cleanup_old_artifacts(tmp_path, DummyLogger())
+
+    assert not old_html.exists()
+    assert not old_png.exists()
+    assert fresh_html.exists()
+
+
+def test_cleanup_keeps_non_error_files(tmp_path):
+    # storage_state.json and last_run.txt age past 30 days but must survive
+    state = tmp_path / "storage_state.json"
+    last_run = tmp_path / "last_run.txt"
+    _aged_file(state, 90)
+    _aged_file(last_run, 90)
+
+    tb.cleanup_old_artifacts(tmp_path, DummyLogger())
+
+    assert state.exists()
+    assert last_run.exists()
+
+
+def test_cleanup_missing_dir_is_noop(tmp_path):
+    tb.cleanup_old_artifacts(tmp_path / "does_not_exist", DummyLogger())
+
+
+def test_cleanup_survives_delete_errors(tmp_path, monkeypatch):
+    doomed = tmp_path / "error_20260101_000000.html"
+    _aged_file(doomed, 40)
+
+    def deny_unlink(self, *args, **kwargs):
+        raise OSError("file locked")
+
+    monkeypatch.setattr(type(doomed), "unlink", deny_unlink)
+    tb.cleanup_old_artifacts(tmp_path, DummyLogger())  # must not raise
+
+
 def _run_main(monkeypatch, *, run_playwright, ssid="OfficeWiFi"):
     """Drives tb.main() with everything external mocked; returns (exit_code, notifications)."""
     notes = []
     monkeypatch.setattr(sys, "argv", ["timebutler_run.py"])
     monkeypatch.setattr(tb, "ensure_directories", lambda: None)
+    monkeypatch.setattr(tb, "cleanup_old_artifacts", lambda *a, **k: None, raising=False)
     monkeypatch.setattr(tb, "init_logging", lambda debug: DummyLogger())
     monkeypatch.setattr(
         tb.tb_credentials, "load_credentials", lambda a, b, l: ("u", "p")
@@ -145,6 +197,28 @@ def _run_main(monkeypatch, *, run_playwright, ssid="OfficeWiFi"):
     monkeypatch.setattr(tb, "run_playwright", run_playwright)
     monkeypatch.setattr(tb, "show_notification", lambda t, m: notes.append(m))
     return tb.main(), notes
+
+
+def test_main_runs_artifact_cleanup(monkeypatch):
+    calls = []
+    monkeypatch.setattr(sys, "argv", ["timebutler_run.py"])
+    monkeypatch.setattr(tb, "ensure_directories", lambda: None)
+    monkeypatch.setattr(
+        tb, "cleanup_old_artifacts", lambda *a, **k: calls.append(a), raising=False
+    )
+    monkeypatch.setattr(tb, "init_logging", lambda debug: DummyLogger())
+    monkeypatch.setattr(
+        tb.tb_credentials, "load_credentials", lambda a, b, l: ("u", "p")
+    )
+    monkeypatch.setattr(tb, "load_allowed_ssids", lambda l: {"OfficeWiFi"})
+    monkeypatch.setattr(tb, "get_current_ssid", lambda l: "OfficeWiFi")
+    monkeypatch.setattr(tb, "already_ran_today", lambda f, l: False)
+    monkeypatch.setattr(tb, "write_last_run", lambda l: None)
+    monkeypatch.setattr(tb, "run_playwright", lambda *a: None)
+    monkeypatch.setattr(tb, "show_notification", lambda t, m: None)
+
+    assert tb.main() == 0
+    assert calls  # main must trigger the artifact cleanup
 
 
 def test_main_notifies_on_failure(monkeypatch):
@@ -167,6 +241,7 @@ def test_main_no_notification_on_ssid_skip(monkeypatch):
 def test_main_status_short_circuits(monkeypatch, capsys):
     monkeypatch.setattr(sys, "argv", ["timebutler_run.py", "--status"])
     monkeypatch.setattr(tb, "ensure_directories", lambda: None)
+    monkeypatch.setattr(tb, "cleanup_old_artifacts", lambda *a, **k: None)
     monkeypatch.setattr(tb, "init_logging", lambda debug: DummyLogger())
     monkeypatch.setattr(tb, "load_allowed_ssids", lambda l: set())
     monkeypatch.setattr(tb, "get_current_ssid", lambda l: None)

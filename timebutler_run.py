@@ -83,6 +83,24 @@ def ensure_directories() -> None:
         path.mkdir(parents=True, exist_ok=True)
 
 
+def cleanup_old_artifacts(
+    state_dir: Path, logger: logging.Logger, max_age_days: int = 30
+) -> None:
+    """Deletes error screenshots/HTML dumps older than max_age_days."""
+    if not state_dir.is_dir():
+        return
+    cutoff = datetime.now().timestamp() - max_age_days * 86400
+    for artifact in state_dir.glob("error_*"):
+        if artifact.suffix not in (".png", ".html"):
+            continue
+        try:
+            if artifact.stat().st_mtime < cutoff:
+                artifact.unlink()
+                logger.info("Removed old error artifact %s", artifact.name)
+        except OSError as exc:
+            logger.warning("Could not remove %s: %s", artifact.name, exc)
+
+
 def load_allowed_ssids(logger: logging.Logger) -> Set[str]:
     if not SETTINGS_FILE.exists():
         logger.error("Settings file not found: %s", SETTINGS_FILE)
@@ -337,6 +355,7 @@ def main() -> int:
     args = parse_args()
     ensure_directories()
     logger = init_logging(debug=args.debug)
+    cleanup_old_artifacts(STATE_DIR, logger)
     if args.status:
         report = tb_status.build_status_report(
             get_current_ssid(logger),

@@ -189,7 +189,7 @@ python timebutler_run.py --status
 Where to look:
 
 - **Logs**: `logs/timebutler.log`
-- **Error screenshots & HTML dumps**: `state/` (written automatically on failure)
+- **Error screenshots & HTML dumps**: `state/` (written automatically on failure; artifacts older than 30 days are cleaned up on each run)
 
 ## Features
 
