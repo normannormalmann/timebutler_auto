@@ -3,7 +3,9 @@ __pycache__/
 .venv/
 .env
 .env.tmp
+.env.server
 config/settings.json
+config/skip_dates.txt
 
 # Ignore content but keep directories
 logs/*

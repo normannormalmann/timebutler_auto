@@ -1,0 +1,4 @@
+# Days without automatic time tracking (vacation, sick leave, ...).
+# Copy to skip_dates.txt. One date or range per line; changes apply immediately.
+2026-12-24
+2026-12-28..2026-12-31

@@ -1,0 +1,13 @@
+.git
+.venv
+.env
+.env.*
+!.env.server.sample
+state
+logs
+tests
+docs
+__pycache__
+*.pyc
+*.ps1
+*.xml
