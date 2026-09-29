@@ -30,6 +30,12 @@
               "name": "base_url",
               "value": "http://timebutler-clock:8080",
               "type": "string"
+            },
+            {
+              "id": "782bc395-d7e3-4ed0-81ec-e92c84d2f50f",
+              "name": "telegram_chat_id",
+              "value": "",
+              "type": "string"
             }
           ]
         },
@@ -42,7 +48,8 @@
       "position": [
         220,
         300
-      ]
+      ],
+      "notes": "telegram_chat_id nur noetig, wenn die Telegram-Nodes aktiviert sind."
     },
     {
       "parameters": {
@@ -116,7 +123,7 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        880,
+        1320,
         300
       ],
       "webhookId": "47c8ad02-7f26-4c25-8ff0-42514d8eabe3"
@@ -136,7 +143,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1100,
+        1540,
         300
       ],
       "retryOnFail": true,
@@ -159,7 +166,7 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        1320,
+        1980,
         300
       ],
       "webhookId": "2d939272-79cb-46a7-9906-65e49938bd1b"
@@ -179,7 +186,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1540,
+        2200,
         300
       ],
       "retryOnFail": true,
@@ -202,7 +209,7 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        1760,
+        2420,
         300
       ],
       "webhookId": "3915309d-d4da-444a-8c64-b517a2268c02"
@@ -222,7 +229,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1980,
+        2640,
         300
       ],
       "retryOnFail": true,
@@ -245,7 +252,7 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        2200,
+        2860,
         300
       ],
       "webhookId": "58915ef4-587f-4059-b369-c77ae1f2eb83"
@@ -265,7 +272,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2420,
+        3520,
         300
       ],
       "retryOnFail": true,
@@ -277,6 +284,270 @@
           "name": "Timebutler Clock Token"
         }
       }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "chatId": "={{ $('Konfiguration').item.json.telegram_chat_id }}",
+        "message": "=🕘 Timebutler — Plan für heute ({{ $('Tagesplan holen').item.json.data.date }})\n\nEinstempeln   {{ $('Tagesplan holen').item.json.data.start_at.slice(11,16) }}\nPause         {{ $('Tagesplan holen').item.json.data.pause_at.slice(11,16) }} – {{ $('Tagesplan holen').item.json.data.resume_at.slice(11,16) }}\nFeierabend    {{ $('Tagesplan holen').item.json.data.stop_at.slice(11,16) }}\nAnwesenheit   {{ Math.round($('Tagesplan holen').item.json.data.presence_minutes / 6) / 10 }} h\n\nOhne Antwort wird wie geplant gestempelt.",
+        "operation": "sendAndWait",
+        "responseType": "approval",
+        "approvalOptions": {
+          "values": {
+            "approvalType": "single",
+            "approveLabel": "✅ Passt",
+            "disapproveLabel": "🚫 Heute nicht"
+          }
+        },
+        "options": {
+          "limitWaitTime": {
+            "values": {
+              "limitType": "afterTimeInterval",
+              "resumeAmount": 10,
+              "resumeUnit": "minutes"
+            }
+          },
+          "appendAttribution": false
+        }
+      },
+      "id": "6cf9c1a9-84e0-4a80-8707-7c814e8e771c",
+      "name": "Plan melden & bestaetigen",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        880,
+        300
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "Telegram"
+        }
+      },
+      "disabled": true,
+      "notes": "Telegram-Schalter: dieser Node ist absichtlich deaktiviert. Zum Einschalten alle sechs Telegram-Nodes markieren und D druecken, Credential zuweisen und telegram_chat_id in 'Konfiguration' setzen.",
+      "webhookId": "6c5ebd98-c5cc-4196-8472-61f7d8281fc8"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "290c85cf-c094-4552-8a7e-388e2c3fc94a",
+              "leftValue": "={{ $json.data.approved !== false }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "709169ba-f19c-4fcc-8ff1-4dc6755003e8",
+      "name": "Heute stempeln?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        300
+      ],
+      "notes": "Nur ein ausdrueckliches Nein stoppt. Keine Antwort — oder Telegram ausgeschaltet — heisst weiter wie geplant."
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "chatId": "={{ $('Konfiguration').item.json.telegram_chat_id }}",
+        "text": "=🚫 Heute wird nicht gestempelt.\n\nFür ganze Tage im Voraus: Datum in server/config/skip_dates.txt eintragen.",
+        "operation": "sendMessage",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "431d09ce-8a2f-4b0a-b1f6-0fb20e3b10e5",
+      "name": "Heute abgesagt",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1320,
+        500
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "Telegram"
+        }
+      },
+      "disabled": true,
+      "notes": "Telegram-Schalter: dieser Node ist absichtlich deaktiviert. Zum Einschalten alle sechs Telegram-Nodes markieren und D druecken, Credential zuweisen und telegram_chat_id in 'Konfiguration' setzen."
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "chatId": "={{ $('Konfiguration').item.json.telegram_chat_id }}",
+        "text": "=✅ Eingestempelt um {{ $now.toFormat('HH:mm') }}\nFeierabend geplant für {{ $('Tagesplan holen').item.json.data.stop_at.slice(11,16) }}.",
+        "operation": "sendMessage",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "aeab2838-9a87-45e0-815b-948cdcbd9470",
+      "name": "Eingestempelt melden",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1760,
+        300
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "Telegram"
+        }
+      },
+      "disabled": true,
+      "notes": "Telegram-Schalter: dieser Node ist absichtlich deaktiviert. Zum Einschalten alle sechs Telegram-Nodes markieren und D druecken, Credential zuweisen und telegram_chat_id in 'Konfiguration' setzen."
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "chatId": "={{ $('Konfiguration').item.json.telegram_chat_id }}",
+        "message": "=🏁 Feierabend — jetzt ausstempeln?\n\nGeplant war {{ $('Tagesplan holen').item.json.data.stop_at.slice(11,16) }}.\n\nOhne Antwort wird in 10 Minuten ausgestempelt.",
+        "operation": "sendAndWait",
+        "responseType": "approval",
+        "approvalOptions": {
+          "values": {
+            "approvalType": "single",
+            "approveLabel": "✅ Ausstempeln",
+            "disapproveLabel": "⏸ Noch nicht"
+          }
+        },
+        "options": {
+          "limitWaitTime": {
+            "values": {
+              "limitType": "afterTimeInterval",
+              "resumeAmount": 10,
+              "resumeUnit": "minutes"
+            }
+          },
+          "appendAttribution": false
+        }
+      },
+      "id": "e025da46-ba8e-4741-8254-eeaf418ce422",
+      "name": "Feierabend bestaetigen",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        3080,
+        300
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "Telegram"
+        }
+      },
+      "disabled": true,
+      "notes": "Telegram-Schalter: dieser Node ist absichtlich deaktiviert. Zum Einschalten alle sechs Telegram-Nodes markieren und D druecken, Credential zuweisen und telegram_chat_id in 'Konfiguration' setzen.",
+      "webhookId": "b8875c17-9453-4c1f-8a02-4696290e8e2b"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "d35b3a23-67bd-42bb-a7e1-8ca780c60ee3",
+              "leftValue": "={{ $json.data.approved !== false }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "18444986-d5d5-489f-a7ef-21c5f883ba6b",
+      "name": "Ausstempeln?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3300,
+        300
+      ],
+      "notes": "Nur ein ausdrueckliches Nein stoppt. Keine Antwort — oder Telegram ausgeschaltet — heisst weiter wie geplant."
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "chatId": "={{ $('Konfiguration').item.json.telegram_chat_id }}",
+        "text": "=⏸ Nicht ausgestempelt.\nDie Uhr läuft weiter — bitte manuell in Timebutler beenden.",
+        "operation": "sendMessage",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "14462a58-c076-4691-8aa9-2cad356078d3",
+      "name": "Nicht ausgestempelt",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        3520,
+        500
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "Telegram"
+        }
+      },
+      "disabled": true,
+      "notes": "Telegram-Schalter: dieser Node ist absichtlich deaktiviert. Zum Einschalten alle sechs Telegram-Nodes markieren und D druecken, Credential zuweisen und telegram_chat_id in 'Konfiguration' setzen."
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "chatId": "={{ $('Konfiguration').item.json.telegram_chat_id }}",
+        "text": "=🏁 Ausgestempelt um {{ $now.toFormat('HH:mm') }}.",
+        "operation": "sendMessage",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "ecc4c4bd-2fb0-4954-a41d-e7fb64f7446b",
+      "name": "Ausgestempelt melden",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        3740,
+        300
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "Telegram"
+        }
+      },
+      "disabled": true,
+      "notes": "Telegram-Schalter: dieser Node ist absichtlich deaktiviert. Zum Einschalten alle sechs Telegram-Nodes markieren und D druecken, Credential zuweisen und telegram_chat_id in 'Konfiguration' setzen."
     }
   ],
   "connections": {
@@ -317,7 +588,7 @@
       "main": [
         [
           {
-            "node": "Warten bis Arbeitsbeginn",
+            "node": "Plan melden & bestaetigen",
             "type": "main",
             "index": 0
           }
@@ -340,7 +611,7 @@
       "main": [
         [
           {
-            "node": "Warten bis Pause",
+            "node": "Eingestempelt melden",
             "type": "main",
             "index": 0
           }
@@ -395,7 +666,87 @@
       "main": [
         [
           {
+            "node": "Feierabend bestaetigen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan melden & bestaetigen": {
+      "main": [
+        [
+          {
+            "node": "Heute stempeln?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Heute stempeln?": {
+      "main": [
+        [
+          {
+            "node": "Warten bis Arbeitsbeginn",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Heute abgesagt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Eingestempelt melden": {
+      "main": [
+        [
+          {
+            "node": "Warten bis Pause",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Feierabend bestaetigen": {
+      "main": [
+        [
+          {
+            "node": "Ausstempeln?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ausstempeln?": {
+      "main": [
+        [
+          {
             "node": "Ausstempeln",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Nicht ausgestempelt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ausstempeln": {
+      "main": [
+        [
+          {
+            "node": "Ausgestempelt melden",
             "type": "main",
             "index": 0
           }

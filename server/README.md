@@ -40,6 +40,49 @@ Generate the token with `python -c "import secrets; print(secrets.token_urlsafe(
 3. Select the credential in each HTTP node; adjust `base_url` in the *Konfiguration* node if needed.
 4. Activate the workflow. Optionally set an *Error Workflow* (workflow settings) to get notified on failures.
 
+## 3. Telegram notifications (optional, off by default)
+
+The workflow ships with six Telegram nodes that let you watch the day from your
+phone and stop it if needed:
+
+| Moment | Message |
+|---|---|
+| 08:45, after the plan is fetched | the day's times, with **✅ Passt** / **🚫 Heute nicht** |
+| after punching in | confirmation with the planned end of the day |
+| at the planned punch-out | **✅ Ausstempeln** / **⏸ Noch nicht** |
+| after punching out | confirmation |
+
+**Silence means consent.** Both prompts have a 10-minute limit and the gate after
+them tests `data.approved !== false`, so only an explicit *no* stops the run — a
+morning you sleep through still gets clocked as planned. That is also why the
+nodes work while switched off: n8n passes data straight through a disabled node,
+`approved` stays undefined, and the workflow behaves exactly as it did without
+Telegram.
+
+**To switch it on:**
+
+1. Create a bot with [@BotFather](https://t.me/BotFather) (`/newbot`) and send it
+   `/start` — Telegram will not hand out a chat ID before you open the chat.
+2. Get the chat ID: `curl -s "https://api.telegram.org/bot<TOKEN>/getUpdates"`,
+   then read `result[0].message.chat.id`.
+3. In n8n: **Credentials → New → Telegram**, paste the token.
+4. Open the workflow, put the chat ID into `telegram_chat_id` in the
+   *Konfiguration* node — it is read from there by all six nodes, so this is the
+   only place it appears.
+5. Select the six Telegram nodes and press <kbd>D</kbd> to activate them, then
+   pick the Telegram credential in each.
+
+**To switch it off again:** select the same six nodes and press <kbd>D</kbd>.
+Nothing else needs changing.
+
+Use a bot of its own rather than one you already use for other alerts — the
+sender name is then enough to tell you what a message is about.
+
+> Messages are deliberately plain text. `sendMessage` defaults to `parse_mode:
+> HTML` and `sendAndWait` has no `parse_mode` at all, so Markdown asterisks would
+> arrive as asterisks; plain text also cannot fail with a Telegram parse error in
+> an unattended run.
+
 ## API
 
 All endpoints except `/health` require `Authorization: Bearer <TB_API_TOKEN>`. Responses: `{"success": bool, "data": ..., "error": str|null}`.
