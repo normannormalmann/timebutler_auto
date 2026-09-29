@@ -1,11 +1,15 @@
-# Runs the clock server next to n8n. Put it on the same Docker network as
-# your n8n container so n8n can reach it at http://timebutler-clock:8080.
+# Runs the clock server next to n8n. Start it from this folder:
+#   docker compose up -d --build
+# Put it on the same Docker network as your n8n container so n8n can reach
+# it at http://timebutler-clock:8080.
 services:
   timebutler-clock:
-    build: .
+    build:
+      context: ..
+      dockerfile: server/Dockerfile
     container_name: timebutler-clock
     restart: unless-stopped
-    env_file: .env.server
+    env_file: .env
     security_opt:
       - no-new-privileges:true
     cap_drop:

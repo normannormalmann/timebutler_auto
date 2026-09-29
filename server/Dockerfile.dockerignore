@@ -1,0 +1,8 @@
+# Build context is the repository root; only the files the Dockerfile copies are needed.
+*
+!tb_selectors.py
+!tb_session.py
+!server/requirements.txt
+!server/tb_clock.py
+!server/tb_schedule.py
+!server/tb_server.py

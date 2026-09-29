@@ -2,11 +2,14 @@
 
 [![CI](https://github.com/normannormalmann/timebutler_auto/actions/workflows/ci.yml/badge.svg)](https://github.com/normannormalmann/timebutler_auto/actions/workflows/ci.yml)
 
-Automated time tracking for [Timebutler](https://app.timebutler.com/): the tool logs in and "punches in" (starts time recording) automatically whenever you are connected to specific Wi-Fi networks — e.g. your office Wi-Fi. It runs silently in the background, at most once per day.
+Automated time tracking for [Timebutler](https://app.timebutler.com/). Two modes share the same login and selector code:
 
-> **New: [n8n mode](#n8n-mode-no-pc-required)** — runs on a server instead of your PC and covers the whole day: punch in between 09:00 and 09:30, a 30-minute break, and punch out 7.5–9 hours later.
+| Mode | Runs on | What it does | Docs |
+|---|---|---|---|
+| **Windows mode** | your PC (Task Scheduler) | punches in when you connect to an office Wi-Fi, at most once per day | this README |
+| **n8n mode** | a server next to [n8n](https://n8n.io/) (Docker) | full day: punch in 09:00–09:30, 30-minute break, punch out 7.5–9 h later — no PC needed | [server/README.md](server/README.md) |
 
-**How it works (Windows mode):** a Windows scheduled task starts the script at sign-in and on every Wi-Fi (re)connect. The script checks your current SSID against an allowlist, and if it matches — and you haven't punched in today — it opens a headless browser, logs in and starts the time recorder.
+**How the Windows mode works:** a Windows scheduled task starts the script at sign-in and on every Wi-Fi (re)connect. The script checks your current SSID against an allowlist, and if it matches — and you haven't punched in today — it opens a headless browser, logs in and starts the time recorder.
 
 ## Contents
 
@@ -15,7 +18,6 @@ Automated time tracking for [Timebutler](https://app.timebutler.com/): the tool 
 - [Configuration](#configuration)
 - [Usage](#usage)
 - [Autostart (Windows Task Scheduler)](#autostart-windows-task-scheduler)
-- [n8n Mode (no PC required)](#n8n-mode-no-pc-required)
 - [Troubleshooting](#troubleshooting)
 - [Features](#features)
 - [Development](#development)
@@ -172,72 +174,6 @@ Prefer `setup_task.ps1` over importing an XML with `schtasks /create /xml`. If t
 
 </details>
 
-## n8n Mode (no PC required)
-
-Instead of reacting to Wi-Fi on your laptop, n8n drives the full workday on a server:
-
-| Step | When (defaults) |
-|---|---|
-| Punch in | random minute between **09:00 and 09:30** |
-| Start break | random minute between **12:00 and 13:00** |
-| End break | exactly **30 minutes** later |
-| Punch out | **7.5–9 hours** after punching in (break included, so 7–8.5 h of net work) |
-
-Weekends, public holidays (optional) and dates in `config/skip_dates.txt` are skipped.
-
-**Architecture:** n8n cannot run a browser itself, so a small container (`tb_server.py`, Playwright + Chromium) exposes the clock as an HTTP API. The n8n workflow fetches the day's plan at 08:45 and uses *Wait* nodes to call the API at the planned times. Plans are persisted, so retries always see the same times, and every clock action is idempotent (starting a running clock is a no-op).
-
-```
-n8n (cron 08:45 Mon–Fri) ──GET /plan──▶ timebutler-clock ──Playwright──▶ Timebutler
-      └─ Wait ▶ POST /clock/start ▶ Wait ▶ /pause ▶ Wait ▶ /resume ▶ Wait ▶ /stop
-```
-
-### 1. Start the clock server (next to n8n)
-
-```bash
-cp .env.server.sample .env.server   # fill in credentials and TB_API_TOKEN
-cp config/skip_dates.sample.txt config/skip_dates.txt   # optional
-N8N_NETWORK=n8n_default docker compose up -d --build
-```
-
-`N8N_NETWORK` must be the Docker network your n8n container is on (`docker network ls`). The server publishes no port; n8n reaches it at `http://timebutler-clock:8080`. For n8n Cloud, put the server behind an HTTPS reverse proxy instead and keep the token secret.
-
-Generate the token with `python -c "import secrets; print(secrets.token_urlsafe(32))"`.
-
-### 2. Import the n8n workflow
-
-1. In n8n: **Credentials → New → Header Auth**, name `Timebutler Clock Token`, header name `Authorization`, value `Bearer <TB_API_TOKEN>`.
-2. **Workflows → Import from file** → `n8n/timebutler_workflow.json`.
-3. Select the credential in each HTTP node; adjust `base_url` in the *Konfiguration* node if needed.
-4. Activate the workflow. Optionally set an *Error Workflow* (workflow settings) to get notified on failures.
-
-### API
-
-All endpoints except `/health` require `Authorization: Bearer <TB_API_TOKEN>`. Responses: `{"success": bool, "data": ..., "error": str|null}`.
-
-| Endpoint | Purpose |
-|---|---|
-| `GET /health` | liveness probe |
-| `GET /plan[?date=YYYY-MM-DD]` | the day's plan, or `{"work": false, "reason": ...}` |
-| `GET /clock` | current state: `running`, `paused` or `stopped` |
-| `POST /clock/start` · `/pause` · `/resume` · `/stop` | clock actions (idempotent) |
-
-### Settings (`.env.server`)
-
-| Variable | Default | Meaning |
-|---|---|---|
-| `TB_START_WINDOW` | `09:00-09:30` | punch-in window |
-| `TB_SHIFT_HOURS` | `7.5-9` | punch-in → punch-out, break included |
-| `TB_BREAK_MINUTES` | `30` | break length |
-| `TB_BREAK_WINDOW` | `12:00-13:00` | break start window |
-| `TB_WORKDAYS` | `1,2,3,4,5` | ISO weekdays (Mon = 1) |
-| `TB_HOLIDAY_REGION` | – | skip public holidays, e.g. `DE-BY`, `DE-NW` |
-| `TB_TIMEZONE` | `Europe/Berlin` | timezone of the plan |
-
-Invalid combinations are rejected at startup — for example a break that could start more than 6 hours after punching in (German working-time law).
-
-`config/skip_dates.txt` takes one date (`2026-12-24`) or range (`2026-10-05..2026-10-09`) per line and is re-read on every plan request — add vacation or sick days there. Adding *today* after the workflow started is fine too: `/clock/start` checks the plan again and refuses to punch in.
-
 ## Troubleshooting
 
 Start with the health check — it shows the task's last result code and the last log line:
@@ -270,7 +206,7 @@ Where to look:
 - **Windows notifications** on failure (and success).
 - **Headless by default**, with session persistence to avoid repeated logins.
 - **Error forensics** — screenshots and HTML dumps on failure.
-- **n8n mode** — full-day automation (in, break, out) from a server, see [n8n Mode](#n8n-mode-no-pc-required).
+- **n8n mode** — full-day automation (in, break, out) from a server, see [server/README.md](server/README.md).
 
 ## Development
 
@@ -281,6 +217,8 @@ python -m pytest
 ```
 
 The tests mock all network and browser interaction, so they run without Playwright browsers or a Timebutler account. CI runs them on Ubuntu and Windows (Python 3.9 and 3.12) for every push and pull request.
+
+Project layout: the Windows mode lives in the repository root (`timebutler_run.py`, `tb_credentials.py`, `tb_status.py`), the n8n mode in `server/`. `tb_session.py` (login) and `tb_selectors.py` are shared by both — a Timebutler UI change only has to be fixed once.
 
 Note: the selector definitions live in `tb_selectors.py` — the module is deliberately *not* named `selectors.py`, since that would shadow Python's standard library module of the same name.
 
