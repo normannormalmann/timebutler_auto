@@ -13,15 +13,24 @@ class DummyLogger:
 class FakeClockPage:
     """Simulates the Timebutler UI 3.x time clock and its data attributes."""
 
-    def __init__(self, running="0", paused="0", save_error=None, stuck=False):
+    def __init__(self, running="0", paused="0", save_error=None, stuck=False, finish_dialog=True):
         self.attrs = {"data-running": running, "data-paused": paused}
         self.save_error = save_error
         self.stuck = stuck  # clicks have no effect
+        self.finish_dialog = finish_dialog  # stop asks for project/category first
         self.finish_panel_open = False
+        self.success_panel_open = False
         self.clicks = []
 
     def locator(self, selector):
         return FakeLocator(self, selector)
+
+    def wait_for_timeout(self, ms):
+        pass
+
+    def reload(self, **kwargs):
+        self.finish_panel_open = False
+        self.success_panel_open = False
 
     def click(self, selector):
         self.clicks.append(selector)
@@ -31,10 +40,12 @@ class FakeClockPage:
             self.attrs.update({"data-running": "1", "data-paused": "0"})
         elif selector == tc.PAUSE_BUTTON:
             self.attrs.update({"data-running": "1", "data-paused": "1"})
-        elif selector == tc.STOP_BUTTON:
+        elif selector == tc.STOP_BUTTON and self.finish_dialog:
             self.finish_panel_open = True
-        elif selector == tc.STOP_CONFIRM and not self.save_error:
+        elif selector in (tc.STOP_BUTTON, tc.STOP_CONFIRM) and not self.save_error:
             self.attrs.update({"data-running": "0", "data-paused": "0"})
+            self.finish_panel_open = False
+            self.success_panel_open = True
 
     def matches(self, selector):
         if selector == tc.CLOCK:
@@ -43,6 +54,8 @@ class FakeClockPage:
             return self.finish_panel_open
         if selector == tc.SAVE_ERROR_PANEL:
             return bool(self.save_error)
+        if selector == tc.SUCCESS_PANEL:
+            return self.success_panel_open
         for state, state_selector in tc._STATE_SELECTORS.items():
             if selector == state_selector:
                 return tc.ClockState(
@@ -137,13 +150,21 @@ def test_stop_while_paused_resumes_first():
     assert page.clicks[0] == tc.RESUME_BUTTON
 
 
+def test_stop_without_finish_dialog_saves_directly():
+    page = FakeClockPage(running="1", finish_dialog=False)
+    result = tc.perform(page, "stop", DummyLogger())
+    assert result["after"] == "stopped"
+    assert page.clicks == [tc.STOP_BUTTON]
+
+
 def test_stop_reports_timebutler_save_error():
     page = FakeClockPage(running="1", save_error="Buchung gesperrt")
     with pytest.raises(RuntimeError, match="Buchung gesperrt"):
         tc.perform(page, "stop", DummyLogger())
 
 
-def test_click_without_effect_raises():
+def test_click_without_effect_raises(monkeypatch):
+    monkeypatch.setattr(tc, "CONFIRM_TIMEOUT_MS", 0)
     page = FakeClockPage(stuck=True)
     with pytest.raises(RuntimeError, match="did not switch"):
         tc.perform(page, "start", DummyLogger())

@@ -3,13 +3,16 @@ Time recorder actions for the Timebutler UI 3.x topbar clock.
 
 The clock element exposes its state as data attributes, e.g.
 <div id="time-clock" data-running="1" data-paused="0" ...>, which is far more
-reliable than looking at button visibility. Every action is idempotent:
+reliable than looking at button visibility. The attributes are rendered by the
+server and not updated by the page's JavaScript after a click, so every click
+is confirmed by reloading the page. Every action is idempotent:
 starting a running clock or stopping a stopped one is a no-op, so n8n can
 safely retry a request.
 """
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import dataclass
 from typing import Callable, Dict, List
 
@@ -19,11 +22,15 @@ PAUSE_BUTTON = "#time-clock-pause-btn"
 RESUME_BUTTON = "#time-clock-resume-btn"
 STOP_BUTTON = "#time-clock-stop"
 STOP_CONFIRM = "#time-clock-stop-confirm"
+SUCCESS_PANEL = "#time-clock-success"
 SAVE_ERROR_PANEL = "#time-clock-save-error"
 SAVE_ERROR_MESSAGE = "#time-clock-save-error-msg"
 
 ACTIONS = ("start", "pause", "resume", "stop")
-CONFIRM_TIMEOUT_MS = 15_000
+CONFIRM_TIMEOUT_MS = 20_000
+STOP_OUTCOME_MS = 10_000  # time for Timebutler to show the save result after "stop"
+POLL_MS = 250
+SETTLE_MS = 1_500  # give Timebutler time to persist the click before reloading
 
 
 @dataclass(frozen=True)
@@ -85,10 +92,24 @@ def _raise_on_save_error(page) -> None:
 
 
 def _click_stop(page) -> None:
+    """Clicks stop and waits for Timebutler's save result.
+
+    Accounts with projects/categories get a "Fast geschafft!" dialog that has
+    to be confirmed; others save immediately and show a success panel.
+    """
     page.locator(STOP_BUTTON).click()
     confirm = page.locator(STOP_CONFIRM)
-    confirm.wait_for(state="visible", timeout=CONFIRM_TIMEOUT_MS)
-    confirm.click()
+    confirmed = False
+    deadline = time.monotonic() + STOP_OUTCOME_MS / 1000
+    while time.monotonic() < deadline:
+        _raise_on_save_error(page)
+        if page.locator(SUCCESS_PANEL).is_visible():
+            return
+        if not confirmed and confirm.is_visible():
+            confirm.click()
+            confirmed = True
+        page.wait_for_timeout(POLL_MS)
+    # no visible outcome: let the reload-based state check decide
 
 
 def _click(page, step: str) -> None:
@@ -102,13 +123,15 @@ def _click(page, step: str) -> None:
 
 
 def _wait_for_state(page, expected: str) -> None:
-    try:
-        page.locator(_STATE_SELECTORS[expected]).wait_for(
-            state="attached", timeout=CONFIRM_TIMEOUT_MS
-        )
-    except Exception:
-        _raise_on_save_error(page)
-        raise RuntimeError(f"Time clock did not switch to '{expected}'.")
+    deadline = time.monotonic() + CONFIRM_TIMEOUT_MS / 1000
+    while True:
+        page.wait_for_timeout(SETTLE_MS)
+        _raise_on_save_error(page)  # the error panel is gone after a reload
+        page.reload(wait_until="networkidle")
+        if page.locator(_STATE_SELECTORS[expected]).count():
+            return
+        if time.monotonic() >= deadline:
+            raise RuntimeError(f"Time clock did not switch to '{expected}'.")
 
 
 def perform(page, action: str, logger: logging.Logger) -> dict:
