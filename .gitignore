@@ -3,15 +3,15 @@ __pycache__/
 .venv/
 .env
 .env.tmp
-.env.server
 config/settings.json
-config/skip_dates.txt
+server/config/skip_dates.txt
 
 # Ignore content but keep directories
 logs/*
 !logs/.gitkeep
 state/*
 !state/.gitkeep
+server/state/
 
 .pytest_cache/
 .claude/

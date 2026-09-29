@@ -30,8 +30,12 @@ from pathlib import Path
 from typing import Callable, Mapping, Optional, Tuple
 from urllib.parse import parse_qs, urlparse
 
-import tb_clock
-import tb_schedule
+# Shared modules (tb_session, tb_selectors) live in the repository root; in the
+# Docker image they sit next to this file, where the extra entry is harmless.
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+
+import tb_clock  # noqa: E402
+import tb_schedule  # noqa: E402
 
 MIN_TOKEN_LENGTH = 24
 DEFAULT_PORT = 8080
