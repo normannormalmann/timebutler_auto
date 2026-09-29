@@ -1,0 +1,413 @@
+{
+  "name": "Timebutler Auto-Stempeluhr",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "45 8 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "28a02fdd-8d4c-4039-9e20-b75bd1199df5",
+      "name": "Werktags 08:45",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c803747c-ec6f-40ba-b8b8-151b9c5dd7df",
+              "name": "base_url",
+              "value": "http://timebutler-clock:8080",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "fbd8ef73-da21-4736-9a12-77cb4b9e6743",
+      "name": "Konfiguration",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Konfiguration').item.json.base_url }}/plan",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 180000
+        }
+      },
+      "id": "5096137b-faf0-4e4d-83ef-410dcc2a1ccc",
+      "name": "Tagesplan holen",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "Timebutler Clock Token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "67cd1c4a-f46e-4077-bb11-17bd016ddd07",
+              "leftValue": "={{ $json.data.work }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "9258c383-fd74-4381-ae12-75395344ec0e",
+      "name": "Arbeitstag?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resume": "specificTime",
+        "dateTime": "={{ $('Tagesplan holen').item.json.data.start_at }}"
+      },
+      "id": "96c14ed2-7755-49e4-bdce-f32a0a547944",
+      "name": "Warten bis Arbeitsbeginn",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        880,
+        300
+      ],
+      "webhookId": "47c8ad02-7f26-4c25-8ff0-42514d8eabe3"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Konfiguration').item.json.base_url }}/clock/start",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 180000
+        }
+      },
+      "id": "a4a6deda-b749-4bb5-96eb-7c15b8e8fe81",
+      "name": "Einstempeln",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "Timebutler Clock Token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resume": "specificTime",
+        "dateTime": "={{ $('Tagesplan holen').item.json.data.pause_at }}"
+      },
+      "id": "f11bf2e5-3f9e-4214-9505-79aaafc48582",
+      "name": "Warten bis Pause",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1320,
+        300
+      ],
+      "webhookId": "2d939272-79cb-46a7-9906-65e49938bd1b"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Konfiguration').item.json.base_url }}/clock/pause",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 180000
+        }
+      },
+      "id": "5f2bbcb1-59f1-43ca-9ef2-18088a49754b",
+      "name": "Pause starten",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "Timebutler Clock Token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resume": "specificTime",
+        "dateTime": "={{ $('Tagesplan holen').item.json.data.resume_at }}"
+      },
+      "id": "1a8e43fd-b8b5-481b-b8ec-982f0be17d24",
+      "name": "Warten bis Pausenende",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1760,
+        300
+      ],
+      "webhookId": "3915309d-d4da-444a-8c64-b517a2268c02"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Konfiguration').item.json.base_url }}/clock/resume",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 180000
+        }
+      },
+      "id": "66cc8865-0264-4278-8fd2-c97610d9ed74",
+      "name": "Pause beenden",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1980,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "Timebutler Clock Token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resume": "specificTime",
+        "dateTime": "={{ $('Tagesplan holen').item.json.data.stop_at }}"
+      },
+      "id": "5373c16d-6279-4978-b521-100291f953cd",
+      "name": "Warten bis Feierabend",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2200,
+        300
+      ],
+      "webhookId": "58915ef4-587f-4059-b369-c77ae1f2eb83"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Konfiguration').item.json.base_url }}/clock/stop",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 180000
+        }
+      },
+      "id": "9004ca39-7ed0-4603-b641-0bb1ffcfd02d",
+      "name": "Ausstempeln",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2420,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL",
+          "name": "Timebutler Clock Token"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Werktags 08:45": {
+      "main": [
+        [
+          {
+            "node": "Konfiguration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Konfiguration": {
+      "main": [
+        [
+          {
+            "node": "Tagesplan holen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tagesplan holen": {
+      "main": [
+        [
+          {
+            "node": "Arbeitstag?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Arbeitstag?": {
+      "main": [
+        [
+          {
+            "node": "Warten bis Arbeitsbeginn",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Warten bis Arbeitsbeginn": {
+      "main": [
+        [
+          {
+            "node": "Einstempeln",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Einstempeln": {
+      "main": [
+        [
+          {
+            "node": "Warten bis Pause",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Warten bis Pause": {
+      "main": [
+        [
+          {
+            "node": "Pause starten",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pause starten": {
+      "main": [
+        [
+          {
+            "node": "Warten bis Pausenende",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Warten bis Pausenende": {
+      "main": [
+        [
+          {
+            "node": "Pause beenden",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pause beenden": {
+      "main": [
+        [
+          {
+            "node": "Warten bis Feierabend",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Warten bis Feierabend": {
+      "main": [
+        [
+          {
+            "node": "Ausstempeln",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Berlin",
+    "saveExecutionProgress": true
+  },
+  "pinData": {}
+}

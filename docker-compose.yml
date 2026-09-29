@@ -1,0 +1,27 @@
+# Runs the clock server next to n8n. Put it on the same Docker network as
+# your n8n container so n8n can reach it at http://timebutler-clock:8080.
+services:
+  timebutler-clock:
+    build: .
+    container_name: timebutler-clock
+    restart: unless-stopped
+    env_file: .env.server
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    volumes:
+      - clock-state:/data/state
+      - ./config:/data/config:ro
+    # No published port: only containers on the n8n network can reach it.
+    # For n8n Cloud, publish it behind an HTTPS reverse proxy instead.
+    networks:
+      - n8n
+
+volumes:
+  clock-state:
+
+networks:
+  n8n:
+    external: true
+    name: ${N8N_NETWORK:-n8n_default}

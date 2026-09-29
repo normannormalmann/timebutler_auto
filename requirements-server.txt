@@ -1,0 +1,5 @@
+# Dependencies of the n8n clock server (tb_server.py) in Docker.
+# Keep the Playwright version in sync with the base image tag in the Dockerfile.
+playwright==1.57.0
+holidays>=0.50,<1
+tzdata

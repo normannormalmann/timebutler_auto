@@ -14,13 +14,8 @@ from typing import Optional, Set
 import tb_selectors as sel  # local module
 from tb_selectors import TimeoutError
 import tb_credentials
+import tb_session
 import tb_status
-
-try:
-    from playwright.sync_api import sync_playwright
-except ImportError:  # pragma: no cover
-    sync_playwright = None
-
 
 BASE_DIR = Path(__file__).resolve().parent
 STATE_DIR = BASE_DIR / "state"
@@ -30,15 +25,12 @@ LAST_RUN_FILE = STATE_DIR / "last_run.txt"
 STORAGE_STATE_FILE = STATE_DIR / "storage_state.json"
 SETTINGS_FILE = CONFIG_DIR / "settings.json"
 LOG_FILE = LOG_DIR / "timebutler.log"
-TIMEBUTLER_URL = "https://app.timebutler.com/"
 
 
 class RunContext:
     def __init__(self, args: argparse.Namespace, logger: logging.Logger):
         self.args = args
         self.logger = logger
-        self.now = datetime.now()
-        self.screenshot_prefix = self.now.strftime("%Y%m%d_%H%M%S")
 
 
 def parse_args() -> argparse.Namespace:
@@ -194,55 +186,6 @@ def write_last_run(logger: logging.Logger) -> None:
         logger.error("Failed to write last_run flag: %s", exc)
 
 
-def is_logged_in(page) -> bool:
-    url = page.url
-
-    # Check if we're on a login page
-    if "login" in url.lower():
-        return False
-
-    # If we're on the main dashboard /do page, we're logged in
-    # (match /do as a path segment, not substrings like /download)
-    if re.search(r"/do(?:[/?#]|$)", url) and "login" not in url.lower():
-        return True
-
-    # Check for logged-in indicators
-    if sel.is_any_visible(page, sel.USER_AVATAR):
-        return True
-    if sel.is_any_visible(page, sel.START_BUTTON):
-        return True
-
-    return False
-
-
-def perform_login(page, username: str, password: str, logger: logging.Logger) -> None:
-    logger.info("Performing login via form.")
-    sel.fill_first(page, sel.LOGIN_USER, username)
-    sel.fill_first(page, sel.LOGIN_PASS, "")
-    sel.fill_first(page, sel.LOGIN_PASS, password)
-
-    # Close cookie consent banner before clicking submit
-    sel.close_cookie_banner(page, logger)
-
-    sel.click_first(page, sel.LOGIN_SUBMIT)
-
-    # Wait for page to navigate and load after login
-    logger.info("Waiting for login to complete...")
-    page.wait_for_load_state("networkidle", timeout=10_000)
-    page.wait_for_timeout(3_000)
-
-    if not is_logged_in(page):
-        logger.error(f"Login check failed. Current URL: {page.url}")
-        raise RuntimeError("Login did not finish successfully.")
-
-
-def ensure_on_dashboard(page, logger: logging.Logger) -> None:
-    logger.debug("Ensuring dashboard is visible.")
-    if page.url.startswith(TIMEBUTLER_URL):
-        return
-    page.goto(TIMEBUTLER_URL, wait_until="networkidle", timeout=30_000)
-
-
 def click_start_button(page, logger: logging.Logger) -> None:
     if sel.is_any_visible(page, sel.RUNNING_INDICATORS):
         logger.info("Zeiterfassung läuft bereits laut UI.")
@@ -275,56 +218,11 @@ def click_start_button(page, logger: logging.Logger) -> None:
     raise RuntimeError("Start confirmation did not appear.")
 
 
-def capture_debug_artifacts(page, ctx: RunContext) -> None:
-    timestamp = ctx.screenshot_prefix
-    png_path = STATE_DIR / f"error_{timestamp}.png"
-    html_path = STATE_DIR / f"error_{timestamp}.html"
-    try:
-        page.screenshot(path=str(png_path), full_page=True)
-        ctx.logger.error("Saved error screenshot to %s", png_path)
-    except Exception as exc:  # pragma: no cover - best-effort
-        ctx.logger.error("Failed to save screenshot: %s", exc)
-    try:
-        html_path.write_text(page.content(), encoding="utf-8")
-        ctx.logger.error("Saved error HTML dump to %s", html_path)
-    except Exception as exc:  # pragma: no cover
-        ctx.logger.error("Failed to save HTML dump: %s", exc)
-
-
 def run_playwright(ctx: RunContext, username: str, password: str) -> None:
-    if sync_playwright is None:  # pragma: no cover
-        raise RuntimeError(
-            "Playwright is not installed. Run 'pip install -r requirements.txt' and 'playwright install chromium'."
-        )
-    with sync_playwright() as pw:
-        browser = pw.chromium.launch(headless=not ctx.args.headful)
-        context_kwargs = {}
-        if STORAGE_STATE_FILE.exists():
-            context_kwargs["storage_state"] = str(STORAGE_STATE_FILE)
-        context = browser.new_context(**context_kwargs)
-        page = context.new_page()
-        page.set_default_navigation_timeout(30_000)
-        page.set_default_timeout(12_000)
-
-        try:
-            ctx.logger.info("Opening %s", TIMEBUTLER_URL)
-            page.goto(TIMEBUTLER_URL, wait_until="networkidle", timeout=30_000)
-
-            if not is_logged_in(page):
-                perform_login(page, username, password, ctx.logger)
-            else:
-                ctx.logger.info("Session already authenticated.")
-
-            ensure_on_dashboard(page, ctx.logger)
-            click_start_button(page, ctx.logger)
-            context.storage_state(path=str(STORAGE_STATE_FILE))
-            ctx.logger.info("Persisted Playwright storage state to %s", STORAGE_STATE_FILE)
-        except Exception:
-            capture_debug_artifacts(page, ctx)
-            raise
-        finally:
-            context.close()
-            browser.close()
+    with tb_session.dashboard_page(
+        username, password, STORAGE_STATE_FILE, ctx.logger, headless=not ctx.args.headful
+    ) as page:
+        click_start_button(page, ctx.logger)
 
 
 def show_notification(title: str, message: str) -> None:
